@@ -14,22 +14,27 @@ function split(value: string): { hour: number; minute: number } {
   return { hour, minute }
 }
 
-// A recorded clock time. Tap it to correct it in a grid picker: no keyboard, no format to get wrong.
+// A recorded clock time with an explicit "Edit time" button that opens a grid picker: no keyboard, no format to get wrong.
 export function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label} ${value}. Change time.`}
+        accessibilityLabel={`${label} ${value}. Edit time.`}
         onPress={() => setOpen(true)}
         android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
         style={styles.box}
       >
-        <Text style={styles.label}>{label}</Text>
-        <View style={styles.valueRow}>
-          <Text style={styles.value}>{value}</Text>
-          <Icon name="pencil-outline" size={16} tint={color.faint} />
+        <View style={styles.boxText}>
+          <Text style={styles.label}>{label}</Text>
+          <Text selectable style={styles.value}>
+            {value}
+          </Text>
+        </View>
+        <View style={styles.edit}>
+          <Icon name="pencil-outline" size={16} tint={color.office} />
+          <Text style={styles.editText}>Edit time</Text>
         </View>
       </Pressable>
       {open ? (
@@ -134,7 +139,6 @@ function Cell({ label, selected, onPress }: { label: string; selected: boolean; 
 
 const styles = StyleSheet.create({
   box: {
-    flex: 1,
     minHeight: 64,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -142,12 +146,15 @@ const styles = StyleSheet.create({
     backgroundColor: color.raised,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    justifyContent: 'center',
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     overflow: 'hidden',
   },
+  boxText: { flex: 1, gap: 2 },
   label: { color: color.muted, fontSize: 13, fontWeight: '600' },
-  valueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  edit: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44 },
+  editText: { color: color.office, fontSize: 15, fontWeight: '700' },
   value: { color: color.text, fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {

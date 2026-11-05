@@ -47,18 +47,8 @@ export function TodayCard() {
     setDay(today, { ...office, ...(inn ? { in: inn } : {}), ...(out ? { out } : {}) })
   }
 
-  // Change takes today back to the start, where you choose again.
-  function reset() {
-    if (!office?.in && day?.kind !== 'leave') return setDay(today, null)
-    show({
-      title: 'Start today over?',
-      message: office
-        ? 'Your clock times for today will be cleared and you can choose again.'
-        : 'Today’s leave and its note will be removed and you can choose again.',
-      icon: 'restart',
-      action: { label: 'Start over', destructive: true, onPress: () => setDay(today, null) },
-    })
-  }
+  // Start over takes today back to the three choices.
+  const reset = () => setDay(today, null)
 
   const status: { icon: IconName; tint: string; title: string; sub: string } = !day
     ? choosingLeave
@@ -72,7 +62,7 @@ export function TodayCard() {
             icon: kindMeta.office.icon,
             tint: kindMeta.office.tint,
             title: open ? 'Clocked in' : day.out ? 'Clocked out' : 'In office',
-            sub: open ? 'Tap the time below if it is wrong' : day.out ? 'Tap a time below to fix it' : 'Not clocked in yet',
+            sub: open ? 'Timer is running' : day.out ? 'Day complete' : 'Not clocked in yet',
           }
 
   return (
@@ -87,7 +77,7 @@ export function TodayCard() {
             {status.sub}
           </Text>
         </View>
-        {day ? <Button label="Change" compact onPress={reset} accessibilityLabel="Change today, start over" /> : null}
+        {day ? <Button label="Start over" compact onPress={reset} accessibilityLabel="Start today over" /> : null}
       </View>
 
       {shown != null ? (
@@ -97,9 +87,9 @@ export function TodayCard() {
       ) : null}
 
       {office?.in ? (
-        <View style={styles.row}>
-          <TimeField label="Clock in" value={office.in} onChange={(value) => setTime('in', value)} />
-          {office.out ? <TimeField label="Clock out" value={office.out} onChange={(value) => setTime('out', value)} /> : null}
+        <View style={styles.times}>
+          <TimeField label="Clocked in at" value={office.in} onChange={(value) => setTime('in', value)} />
+          {office.out ? <TimeField label="Clocked out at" value={office.out} onChange={(value) => setTime('out', value)} /> : null}
         </View>
       ) : null}
 
@@ -139,6 +129,7 @@ const styles = StyleSheet.create({
   status: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   badge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   statusText: { flex: 1, gap: 2 },
+  times: { gap: 8 },
   note: {
     color: color.text,
     fontSize: 15,
