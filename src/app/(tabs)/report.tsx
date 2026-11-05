@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native'
+import { ExcelExport } from '@/components/ExcelExport'
 import { LeaveList } from '@/components/LeaveList'
 import { Screen } from '@/components/Screen'
 import { Button, PeriodNav, Section, text } from '@/components/ui'
@@ -94,11 +95,14 @@ export default function ReportScreen() {
         <LeaveList year={year} />
       </Section>
 
-      <Button
-        label={`Share ${year} report`}
-        icon="share-variant-outline"
-        onPress={() => Share.share({ message: yearReport(days, year, today) }).catch(() => undefined)}
-      />
+      <Section title="Share the report">
+        <Button
+          label={`Share ${year} as text`}
+          icon="share-variant-outline"
+          onPress={() => Share.share({ message: yearReport(days, year, today) }).catch(() => undefined)}
+        />
+        <ExcelExport key={year} year={year} />
+      </Section>
     </Screen>
   )
 }
