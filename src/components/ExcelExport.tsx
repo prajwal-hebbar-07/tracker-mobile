@@ -3,10 +3,22 @@ import * as Sharing from 'expo-sharing'
 import { useMemo, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Button, Chip, IconButton, text } from '@/components/ui'
-import { excelFileName, excelLabel, excelSheets, maxExcelYears, plural, todayKey, type ExcelOptions } from '@/logic'
+import { excelLabel, excelSheets, maxExcelYears, plural, todayKey, type ExcelOptions } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
-import { toXlsx, xlsxMime } from '@/xlsx'
+import { toXlsx, xlsxMime, type Sheet } from '@/xlsx'
+
+// Writes the workbook to the cache folder and opens the share sheet. `label` names the file, e.g. 2024–2026.
+export async function shareXlsx(sheets: Sheet[], label: string): Promise<void> {
+  const file = new File(Paths.cache, `logbook-${label.replace('–', '-')}.xlsx`)
+  file.create({ overwrite: true })
+  await file.write(toXlsx(sheets))
+  await Sharing.shareAsync(file.uri, {
+    mimeType: xlsxMime,
+    UTI: 'org.openxmlformats.spreadsheetml.sheet',
+    dialogTitle: `Logbook ${label}`,
+  })
+}
 
 // Pick a first year and how many years follow it; each day of those years becomes one row.
 export function ExcelExport({ year }: { year: number }) {
@@ -22,14 +34,7 @@ export function ExcelExport({ year }: { year: number }) {
     setBusy(true)
     setMessage('')
     try {
-      const file = new File(Paths.cache, excelFileName(options))
-      file.create({ overwrite: true })
-      await file.write(toXlsx(sheets))
-      await Sharing.shareAsync(file.uri, {
-        mimeType: xlsxMime,
-        UTI: 'org.openxmlformats.spreadsheetml.sheet',
-        dialogTitle: `Logbook ${excelLabel(options)}`,
-      })
+      await shareXlsx(sheets, excelLabel(options))
     } catch {
       setMessage('Could not create the Excel file. Nothing was changed.')
     } finally {

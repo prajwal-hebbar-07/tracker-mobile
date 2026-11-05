@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Share, StyleSheet, Text } from 'react-native'
+import { shareXlsx } from '@/components/ExcelExport'
 import { Legend, MonthHeat } from '@/components/MonthHeat'
 import { Screen } from '@/components/Screen'
 import { Button, PeriodNav, text } from '@/components/ui'
-import { formatMinutes, formatMonth, monthReport, summarize, todayKey } from '@/logic'
+import { excelMonthSheet, formatMinutes, formatMonth, monthReport, summarize, todayKey } from '@/logic'
 import { useDays } from '@/store'
 
 export default function CalendarScreen() {
@@ -23,10 +24,24 @@ function CalendarBody({ opening }: { opening: string }) {
   const prefix = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`
   const summary = summarize(days, { today, prefix })
   const isCurrent = prefix === today.slice(0, 7)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
 
   function shift(delta: number) {
     const next = new Date(cursor.year, cursor.month + delta, 1)
     setCursor({ year: next.getFullYear(), month: next.getMonth() })
+  }
+
+  async function shareExcel() {
+    setBusy(true)
+    setMessage('')
+    try {
+      await shareXlsx([excelMonthSheet(days, cursor.year, cursor.month, today)], prefix)
+    } catch {
+      setMessage('Could not create the Excel file. Nothing was changed.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -55,6 +70,14 @@ function CalendarBody({ opening }: { opening: string }) {
         variant="ghost"
         onPress={() => Share.share({ message: monthReport(days, cursor.year, cursor.month, today) }).catch(() => undefined)}
       />
+      <Button
+        label={busy ? 'Preparing…' : 'Share month as Excel (.xlsx)'}
+        icon="microsoft-excel"
+        variant="ghost"
+        disabled={busy}
+        onPress={shareExcel}
+      />
+      {message ? <Text style={[text.danger, styles.summary]}>{message}</Text> : null}
     </Screen>
   )
 }

@@ -3,7 +3,7 @@
 Personal attendance and leave log for one Android phone, dark theme only. The log stays on the phone.
 
 - **Today**: clock in, clock out, work from home or leave, for today only. **Leave** asks for the type and an optional note, then **Save leave** records it. Once clocked in, the clock-in time shows on the card with **Edit time**; after clock-out both times do. **Start over** clears today so you can choose again.
-- **Calendar**: a month at a glance. Tap another date to see what was logged or to mark it as leave. **Share month** sends a readable list of every day.
+- **Calendar**: a month at a glance. Tap another date to see what was logged or to mark it as leave. **Share month** sends a readable list of every day; **Share month as Excel** sends the same workbook as the Report export, with one row for each day of that month.
 - **Report**: the year in one place. Totals, a month-by-month table, leave by type with dates and notes. **Plan leave in advance** books a range of future days; weekends are skipped unless you turn on **Count weekends**. Remove leave from the list here. **Share the report** sends the year as text, or as an Excel workbook with one row for every calendar day: pick the first year and how many years, whether empty weekends are listed, and one sheet per year or a single sheet.
 - **Settings** (gear icon): export as CSV or JSON, restore a backup, check for an update.
 

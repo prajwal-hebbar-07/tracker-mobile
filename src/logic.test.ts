@@ -4,6 +4,7 @@ import {
   cleanDays,
   eachDate,
   excelSheets,
+  excelMonthSheet,
   formatMinutes,
   leaveCounts,
   leaveDates,
@@ -193,6 +194,17 @@ test('Excel export has a row for every day of each chosen year', () => {
   const [joined] = excelSheets(days, { from: 2024, years: 3, weekends: true, split: false }, today)
   assert.equal(joined.name, '2024-2026')
   assert.equal(joined.rows.length, 366 + 365 + 365)
+})
+
+test('Excel month sheet matches that month of the year export', () => {
+  const days = { '2026-11-03': { kind: 'leave' as const, leaveType: 'sick' as const, note: 'flu' } }
+  const month = excelMonthSheet(days, 2026, 10, today)
+  assert.equal(month.name, '2026-11')
+  assert.equal(month.rows.length, 30)
+  const [year] = excelSheets(days, { from: 2026, years: 1, weekends: true, split: true }, today)
+  const start = eachDate('2026-01-01', '2026-11-01').length - 1
+  assert.deepEqual(month.rows, year.rows.slice(start, start + 30))
+  assert.equal(excelMonthSheet({}, 2024, 1, today).rows.length, 29)
 })
 
 test('open clock time counts minutes until now', () => {

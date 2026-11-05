@@ -434,10 +434,6 @@ export function excelLabel(options: ExcelOptions): string {
   return years.length === 1 ? String(years[0]) : `${years[0]}–${years[years.length - 1]}`
 }
 
-export function excelFileName(options: ExcelOptions): string {
-  return `logbook-${excelLabel(options).replace('–', '-')}.xlsx`
-}
-
 function excelDate(key: string): number {
   const [year, month, day] = key.split('-').map(Number)
   return (Date.UTC(year, month - 1, day) - Date.UTC(1899, 11, 30)) / 86400000
@@ -471,20 +467,37 @@ function excelRow(date: string, day: Day | undefined, today: string): Cell[] {
   ]
 }
 
-function excelRows(days: Days, year: number, options: ExcelOptions, today: string): Cell[][] {
-  return eachDate(`${year}-01-01`, `${year}-12-31`)
-    .filter((date) => options.weekends || !isWeekend(date) || days[date])
+const excelHeader = ['Date', 'Day', 'Status', 'Leave type', 'In', 'Out', 'Hours', 'Note']
+const excelWidths = [12, 6, 12, 16, 8, 8, 8, 48]
+
+function excelRows(days: Days, from: string, to: string, weekends: boolean, today: string): Cell[][] {
+  return eachDate(from, to)
+    .filter((date) => weekends || !isWeekend(date) || days[date])
     .map((date) => excelRow(date, days[date], today))
+}
+
+function yearRows(days: Days, year: number, options: ExcelOptions, today: string): Cell[][] {
+  return excelRows(days, `${year}-01-01`, `${year}-12-31`, options.weekends, today)
 }
 
 // Every calendar day of each chosen year gets a row, logged or not.
 export function excelSheets(days: Days, options: ExcelOptions, today: string): Sheet[] {
-  const header = ['Date', 'Day', 'Status', 'Leave type', 'In', 'Out', 'Hours', 'Note']
-  const widths = [12, 6, 12, 16, 8, 8, 8, 48]
   const years = excelYears(options)
   if (options.split) {
-    return years.map((year) => ({ name: String(year), header, widths, rows: excelRows(days, year, options, today) }))
+    return years.map((year) => ({
+      name: String(year),
+      header: excelHeader,
+      widths: excelWidths,
+      rows: yearRows(days, year, options, today),
+    }))
   }
-  const rows = years.flatMap((year) => excelRows(days, year, options, today))
-  return [{ name: excelLabel(options).replace('–', '-'), header, widths, rows }]
+  const rows = years.flatMap((year) => yearRows(days, year, options, today))
+  return [{ name: excelLabel(options).replace('–', '-'), header: excelHeader, widths: excelWidths, rows }]
+}
+
+// The same sheet as the year export, for every day of one month.
+export function excelMonthSheet(days: Days, year: number, monthIndex: number, today: string): Sheet {
+  const prefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+  const last = dateKey(new Date(year, monthIndex + 1, 0))
+  return { name: prefix, header: excelHeader, widths: excelWidths, rows: excelRows(days, `${prefix}-01`, last, true, today) }
 }
