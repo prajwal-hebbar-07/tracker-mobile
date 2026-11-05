@@ -48,8 +48,6 @@ export type Summary = {
   weekdaysMarked: number
   months: number[]
   leaves: string[]
-  // Past weekdays in range with nothing recorded, oldest first.
-  unmarked: string[]
 }
 
 export function isDateKey(value: string): boolean {
@@ -287,7 +285,6 @@ export function summarize(days: Days, opts: { today: string; prefix?: string }):
     weekdaysMarked: 0,
     months: Array.from({ length: 12 }, () => 0),
     leaves: [],
-    unmarked: [],
   }
 
   for (const [date, day] of Object.entries(days)) {
@@ -315,7 +312,6 @@ export function summarize(days: Days, opts: { today: string; prefix?: string }):
     if (isWeekend(cursor)) continue
     summary.weekdays += 1
     if (days[cursor]) summary.weekdaysMarked += 1
-    else summary.unmarked.push(cursor)
   }
   return summary
 }

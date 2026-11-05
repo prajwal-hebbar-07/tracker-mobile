@@ -2,7 +2,7 @@
 
 Personal attendance and leave log for one Android phone, dark theme only. The log stays on the phone.
 
-- **Today**: clock in and out, mark work from home, or apply leave. A single line flags weekdays you forgot to log.
+- **Today**: clock in and out, mark work from home, or apply leave.
 - **Calendar**: a month at a glance. Tap any date to log or fix it. **Share month** sends a readable list of every day.
 - **Report**: the year in one place. Totals, a month-by-month table, leave by type with dates and notes, and **Share report**. Apply or remove leave here. When you apply leave over a range, weekends are skipped unless you turn on **Count weekends**.
 - **Settings** (gear icon): export as CSV or JSON, restore a backup, check for an update.
