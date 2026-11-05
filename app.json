@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Logbook",
-    "slug": "logbook",
+    "slug": "tracker-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -27,9 +27,23 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-status-bar", "expo-router"],
+    "plugins": [
+      "expo-status-bar",
+      "expo-router",
+      "expo-font"
+    ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "31270dfa-f83c-407d-b85b-92e45c9c8807"
+      }
+    },
+    "owner": "chaotic-thoughts-team",
+    "updates": {
+      "url": "https://u.expo.dev/31270dfa-f83c-407d-b85b-92e45c9c8807"
     }
   }
 }
