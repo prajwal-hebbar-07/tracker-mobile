@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Logbook",
+    "slug": "logbook",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "logbook",
+    "userInterfaceStyle": "dark",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "works.oni.logbook",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#10120F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-status-bar", "expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
