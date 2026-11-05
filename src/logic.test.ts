@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   cleanDays,
   eachDate,
+  excelSheets,
   formatMinutes,
   leaveCounts,
   leaveDates,
@@ -156,6 +157,42 @@ test('CSV export quotes notes that would break a column', () => {
     '2026-11-02,Mon,office,,09:00,17:30,510,',
     '2026-11-03,Tue,wfh,,,,,"said ""hi"", left"',
   ])
+})
+
+test('Excel export has a row for every day of each chosen year', () => {
+  const days = {
+    '2024-02-29': { kind: 'office' as const, in: '09:00', out: '17:30' },
+    '2026-11-03': { kind: 'leave' as const, leaveType: 'sick' as const, note: 'flu' },
+    '2026-11-07': { kind: 'wfh' as const },
+  }
+  const split = excelSheets(days, { from: 2024, years: 3, weekends: true, split: true }, today)
+  assert.deepEqual(
+    split.map((sheet) => [sheet.name, sheet.rows.length]),
+    [
+      ['2024', 366],
+      ['2025', 365],
+      ['2026', 365],
+    ],
+  )
+  const leap = split[0].rows[59]
+  assert.deepEqual(leap.slice(0, 5), [{ value: 45351, format: 'date' }, 'Thu', 'Office', null, { value: 540 / 1440, format: 'time' }])
+  assert.deepEqual(leap[6], { value: 510 / 1440, format: 'duration' })
+
+  const row = (key: string) => split[2].rows[eachDate('2026-01-01', key).length - 1].slice(2)
+  assert.deepEqual(row('2026-11-03'), ['Leave', 'Sick leave', null, null, null, 'flu'])
+  assert.deepEqual(row('2026-11-04'), ['Not logged'])
+  assert.deepEqual(row('2026-11-05'), [null])
+  assert.deepEqual(row('2026-11-08'), ['Weekend'])
+
+  // Without weekends, a weekend that was worked still gets its row.
+  const [weekdays] = excelSheets(days, { from: 2026, years: 1, weekends: false, split: false }, today)
+  assert.equal(weekdays.name, '2026')
+  assert.equal(weekdays.rows.length, 261 + 1)
+  assert.ok(weekdays.rows.some((cells) => cells[1] === 'Sat' && cells[2] === 'Home'))
+
+  const [joined] = excelSheets(days, { from: 2024, years: 3, weekends: true, split: false }, today)
+  assert.equal(joined.name, '2024-2026')
+  assert.equal(joined.rows.length, 366 + 365 + 365)
 })
 
 test('open clock time counts minutes until now', () => {

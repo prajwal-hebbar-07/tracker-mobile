@@ -1,3 +1,5 @@
+import type { Cell, Sheet } from './xlsx'
+
 export type Kind = 'office' | 'wfh' | 'leave'
 
 export type LeaveType = 'personal' | 'sick' | 'early' | 'lop'
@@ -410,4 +412,79 @@ export function toCsv(days: Days): string {
     ])
   }
   return rows.map((row) => row.map(csvCell).join(',')).join('\n')
+}
+
+export type ExcelOptions = {
+  from: number
+  years: number
+  // Off drops empty Saturdays and Sundays; a weekend day with something logged always stays.
+  weekends: boolean
+  // One sheet per year, or every year on a single sheet.
+  split: boolean
+}
+
+export const maxExcelYears = 10
+
+export function excelYears(options: ExcelOptions): number[] {
+  return Array.from({ length: options.years }, (_, index) => options.from + index)
+}
+
+export function excelLabel(options: ExcelOptions): string {
+  const years = excelYears(options)
+  return years.length === 1 ? String(years[0]) : `${years[0]}–${years[years.length - 1]}`
+}
+
+export function excelFileName(options: ExcelOptions): string {
+  return `logbook-${excelLabel(options).replace('–', '-')}.xlsx`
+}
+
+function excelDate(key: string): number {
+  const [year, month, day] = key.split('-').map(Number)
+  return (Date.UTC(year, month - 1, day) - Date.UTC(1899, 11, 30)) / 86400000
+}
+
+function excelTime(value?: string): Cell {
+  const time = value ? normalizeTime(value) : null
+  if (!time) return null
+  const [hours, minutes] = time.split(':').map(Number)
+  return { value: (hours * 60 + minutes) / 1440, format: 'time' }
+}
+
+const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// An empty past weekday reads "Not logged"; an empty day still to come stays blank.
+function excelRow(date: string, day: Day | undefined, today: string): Cell[] {
+  const start: Cell[] = [{ value: excelDate(date), format: 'date' }, weekdayNames[parseDateKey(date).getDay()]]
+  if (!day) return [...start, isWeekend(date) ? 'Weekend' : date < today ? 'Not logged' : null]
+  const status = day.kind === 'office' ? 'Office' : day.kind === 'wfh' ? 'Home' : 'Leave'
+  const leaveType = day.kind === 'leave' ? (leaveTypes.find((item) => item.id === day.leaveType)?.label ?? null) : null
+  const office = day.kind === 'office'
+  const mins = office ? minutesBetween(day.in, day.out) : null
+  return [
+    ...start,
+    status,
+    leaveType,
+    office ? excelTime(day.in) : null,
+    office ? excelTime(day.out) : null,
+    mins == null ? null : { value: mins / 1440, format: 'duration' },
+    day.note ?? null,
+  ]
+}
+
+function excelRows(days: Days, year: number, options: ExcelOptions, today: string): Cell[][] {
+  return eachDate(`${year}-01-01`, `${year}-12-31`)
+    .filter((date) => options.weekends || !isWeekend(date) || days[date])
+    .map((date) => excelRow(date, days[date], today))
+}
+
+// Every calendar day of each chosen year gets a row, logged or not.
+export function excelSheets(days: Days, options: ExcelOptions, today: string): Sheet[] {
+  const header = ['Date', 'Day', 'Status', 'Leave type', 'In', 'Out', 'Hours', 'Note']
+  const widths = [12, 6, 12, 16, 8, 8, 8, 48]
+  const years = excelYears(options)
+  if (options.split) {
+    return years.map((year) => ({ name: String(year), header, widths, rows: excelRows(days, year, options, today) }))
+  }
+  const rows = years.flatMap((year) => excelRows(days, year, options, today))
+  return [{ name: excelLabel(options).replace('–', '-'), header, widths, rows }]
 }
