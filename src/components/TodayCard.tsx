@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { AppState, StyleSheet, Text, View } from 'react-native'
 import { useDialog } from '@/components/Dialog'
+import { LeaveForm } from '@/components/LeaveForm'
 import { TimeField } from '@/components/TimeField'
-import { Button, Card, Chip, Icon, text } from '@/components/ui'
-import { formatMinutes, leaveTypes, minutesBetween, minutesSince, timeNow, todayKey } from '@/logic'
+import { Button, Card, Icon, text } from '@/components/ui'
+import { formatMinutes, leaveLabel, minutesBetween, minutesSince, timeNow, todayKey } from '@/logic'
 import { useDays } from '@/store'
-import { color, kindMeta, leaveIcon, type IconName } from '@/theme'
+import { color, kindMeta, type IconName } from '@/theme'
 
 // Clock in, clock out and work from home exist only here, for today. Other days can only take leave.
 export function TodayCard() {
@@ -15,6 +16,8 @@ export function TodayCard() {
   const open = day?.kind === 'office' && Boolean(day.in) && !day.out
   const [now, setNow] = useState(() => new Date())
   const [dialog, show] = useDialog()
+  // Leave is a draft until Save, so nothing is recorded while you pick a type or write a note.
+  const [choosingLeave, setChoosingLeave] = useState(false)
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -46,21 +49,25 @@ export function TodayCard() {
 
   // Change takes today back to the start, where you choose again.
   function reset() {
-    if (!office?.in) return setDay(today, null)
+    if (!office?.in && day?.kind !== 'leave') return setDay(today, null)
     show({
       title: 'Start today over?',
-      message: 'Your clock times for today will be cleared and you can choose again.',
+      message: office
+        ? 'Your clock times for today will be cleared and you can choose again.'
+        : 'Today’s leave and its note will be removed and you can choose again.',
       icon: 'restart',
       action: { label: 'Start over', destructive: true, onPress: () => setDay(today, null) },
     })
   }
 
   const status: { icon: IconName; tint: string; title: string; sub: string } = !day
-    ? { icon: 'calendar-alert', tint: color.muted, title: 'Not logged yet', sub: 'Choose how you are working today' }
+    ? choosingLeave
+      ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: 'Taking leave today', sub: 'Pick the type, add a note, then save' }
+      : { icon: 'calendar-alert', tint: color.muted, title: 'Not logged yet', sub: 'Choose how you are working today' }
     : day.kind === 'wfh'
       ? { icon: kindMeta.wfh.icon, tint: kindMeta.wfh.tint, title: 'Working from home', sub: 'Counts as a worked day' }
       : day.kind === 'leave'
-        ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: 'On leave today', sub: day.note ?? 'Tap the type that fits' }
+        ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: leaveLabel(day.leaveType), sub: 'On leave today' }
         : {
             icon: kindMeta.office.icon,
             tint: kindMeta.office.tint,
@@ -96,33 +103,26 @@ export function TodayCard() {
         </View>
       ) : null}
 
-      {day?.kind === 'leave' ? (
-        <View style={styles.chips}>
-          {leaveTypes.map((item) => (
-            <Chip
-              key={item.id}
-              label={item.label}
-              icon={leaveIcon[item.id]}
-              tint={color.leave}
-              selected={(day.leaveType ?? 'personal') === item.id}
-              onPress={() => setDay(today, { ...day, leaveType: item.id })}
-            />
-          ))}
-        </View>
+      {day?.kind === 'leave' && day.note ? (
+        <Text selectable style={styles.note}>
+          {day.note}
+        </Text>
       ) : null}
 
-      {!day ? (
+      {!day && choosingLeave ? (
+        <LeaveForm
+          onCancel={() => setChoosingLeave(false)}
+          onSave={(leaveType, note) => {
+            setDay(today, { kind: 'leave', leaveType, ...(note ? { note } : {}) })
+            setChoosingLeave(false)
+          }}
+        />
+      ) : !day ? (
         <View style={styles.actions}>
           <Button label="Clock in" icon="login" variant="primary" onPress={() => setDay(today, { kind: 'office', in: timeNow() })} />
           <View style={styles.row}>
             <Button label="From home" icon={kindMeta.wfh.icon} tint={kindMeta.wfh.tint} grow onPress={() => setDay(today, { kind: 'wfh' })} />
-            <Button
-              label="Leave"
-              icon={kindMeta.leave.icon}
-              tint={kindMeta.leave.tint}
-              grow
-              onPress={() => setDay(today, { kind: 'leave', leaveType: 'personal' })}
-            />
+            <Button label="Leave" icon={kindMeta.leave.icon} tint={kindMeta.leave.tint} grow onPress={() => setChoosingLeave(true)} />
           </View>
         </View>
       ) : open && office?.in ? (
@@ -139,7 +139,14 @@ const styles = StyleSheet.create({
   status: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   badge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   statusText: { flex: 1, gap: 2 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  note: {
+    color: color.text,
+    fontSize: 15,
+    lineHeight: 21,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: color.raised,
+  },
   title: { color: color.text, fontSize: 18, fontWeight: '700' },
   hours: { color: color.text, fontSize: 48, fontWeight: '700', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   actions: { gap: 8 },

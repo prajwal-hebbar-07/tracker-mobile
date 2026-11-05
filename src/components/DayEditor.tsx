@@ -1,73 +1,73 @@
 import { useState } from 'react'
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useDialog } from '@/components/Dialog'
-import { Button, Chip, Icon, text } from '@/components/ui'
-import { describeDay, leaveTypes, type Day, type LeaveType } from '@/logic'
-import { color, kindMeta, leaveIcon, radius } from '@/theme'
+import { LeaveForm } from '@/components/LeaveForm'
+import { Button, Icon, text } from '@/components/ui'
+import { describeDay, type Day, type LeaveType } from '@/logic'
+import { color, kindMeta, radius } from '@/theme'
 
 // Days other than today only take leave. Office and home days are logged live from Today, so here they are read-only.
 export function DayEditor({ day, onChange }: { day?: Day; onChange: (day: Day | null) => void }) {
-  const [note, setNote] = useState(day?.kind === 'leave' ? (day.note ?? '') : '')
+  const [editing, setEditing] = useState(false)
   const [dialog, show] = useDialog()
 
-  function saveLeave(leaveType: LeaveType, text = note) {
-    const trimmed = text.trim().slice(0, 280)
-    onChange({ kind: 'leave', leaveType, ...(trimmed ? { note: trimmed } : {}) })
-  }
-
-  function markLeave() {
-    if (!day) return saveLeave('personal')
+  function save(leaveType: LeaveType, note: string) {
+    const write = () => {
+      onChange({ kind: 'leave', leaveType, ...(note ? { note } : {}) })
+      setEditing(false)
+    }
+    if (!day || day.kind === 'leave') return write()
     show({
-      title: 'Mark this day as leave?',
+      title: 'Replace this day with leave?',
       message: `It is logged as ${describeDay(day)}. That record will be replaced.`,
       icon: 'palm-tree',
-      action: { label: 'Mark as leave', destructive: true, onPress: () => saveLeave('personal') },
+      action: { label: 'Replace', destructive: true, onPress: write },
     })
   }
 
-  if (day?.kind !== 'leave') {
-    return (
-      <View style={styles.wrap}>
-        <View style={styles.record}>
-          <Icon name={day ? kindMeta[day.kind].icon : 'calendar-blank-outline'} size={22} tint={day ? kindMeta[day.kind].tint : color.faint} />
-          <Text selectable style={styles.recordText}>
-            {day ? describeDay(day) : 'Nothing logged'}
-          </Text>
-        </View>
-        <Button label="Mark as leave" icon={kindMeta.leave.icon} tint={color.leave} onPress={markLeave} />
-        {dialog}
-      </View>
-    )
+  function remove() {
+    show({
+      title: 'Remove this leave?',
+      message: 'The day goes back to nothing logged.',
+      icon: 'delete-outline',
+      action: { label: 'Remove', destructive: true, onPress: () => onChange(null) },
+    })
   }
 
-  const leaveType = day.leaveType ?? 'personal'
+  const meta = day ? kindMeta[day.kind] : null
+
   return (
     <View style={styles.wrap}>
-      <View style={styles.chips}>
-        {leaveTypes.map((item) => (
-          <Chip
-            key={item.id}
-            label={item.label}
-            icon={leaveIcon[item.id]}
-            tint={color.leave}
-            selected={leaveType === item.id}
-            onPress={() => saveLeave(item.id)}
-          />
-        ))}
+      <View style={styles.record}>
+        <Icon name={meta?.icon ?? 'calendar-blank-outline'} size={22} tint={meta?.tint ?? color.faint} />
+        <View style={styles.recordText}>
+          <Text selectable style={text.body}>
+            {day ? describeDay(day) : 'Nothing logged'}
+          </Text>
+          {day?.kind === 'leave' && day.note ? (
+            <Text selectable style={text.muted}>
+              {day.note}
+            </Text>
+          ) : null}
+        </View>
       </View>
-      <TextInput
-        value={note}
-        onChangeText={(value) => {
-          setNote(value)
-          saveLeave(leaveType, value)
-        }}
-        placeholder="Note: reason, approval…"
-        placeholderTextColor={color.faint}
-        maxLength={280}
-        multiline
-        style={styles.note}
-      />
-      <Button label="Remove leave" icon="delete-outline" variant="ghost" tint={color.danger} onPress={() => onChange(null)} />
+
+      {editing ? (
+        <LeaveForm
+          initialType={day?.kind === 'leave' ? day.leaveType : undefined}
+          initialNote={day?.kind === 'leave' ? day.note : undefined}
+          onCancel={() => setEditing(false)}
+          onSave={save}
+        />
+      ) : day?.kind === 'leave' ? (
+        <View style={styles.row}>
+          <Button label="Edit leave" icon="pencil-outline" grow onPress={() => setEditing(true)} />
+          <Button label="Remove" icon="delete-outline" variant="danger" grow onPress={remove} />
+        </View>
+      ) : (
+        <Button label="Mark as leave" icon={kindMeta.leave.icon} tint={color.leave} onPress={() => setEditing(true)} />
+      )}
+      {dialog}
     </View>
   )
 }
@@ -80,22 +80,11 @@ const styles = StyleSheet.create({
     gap: 12,
     minHeight: 56,
     paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: color.line,
   },
-  recordText: { ...text.body, flex: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  note: {
-    minHeight: 96,
-    borderRadius: radius.md,
-    padding: 14,
-    color: color.text,
-    backgroundColor: color.card,
-    borderWidth: 1,
-    borderColor: color.line,
-    fontSize: 16,
-    lineHeight: 22,
-    textAlignVertical: 'top',
-  },
+  recordText: { flex: 1, gap: 2 },
+  row: { flexDirection: 'row', gap: 8 },
 })
