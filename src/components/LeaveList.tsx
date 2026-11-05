@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router'
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useDialog } from '@/components/Dialog'
 import { IconButton, text } from '@/components/ui'
 import { eachDate, formatRange, leaveLabel, leaveSpans, plural, type LeaveSpan } from '@/logic'
 import { useDays } from '@/store'
@@ -8,24 +9,27 @@ import { color } from '@/theme'
 export function LeaveList({ year }: { year: number }) {
   const router = useRouter()
   const { days, setDay } = useDays()
+  const [dialog, show] = useDialog()
   const prefix = String(year)
   const spans = leaveSpans(days)
     .filter((span) => span.from.startsWith(prefix) || span.to.startsWith(prefix))
     .reverse()
 
   function remove(span: LeaveSpan) {
-    Alert.alert(`Remove ${plural(span.count, 'day')} of leave?`, formatRange(span.from, span.to), [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
+    show({
+      title: `Remove ${plural(span.count, 'day')} of leave?`,
+      message: formatRange(span.from, span.to),
+      icon: 'delete-outline',
+      action: {
+        label: 'Remove',
+        destructive: true,
         onPress: () => {
           for (const date of eachDate(span.from, span.to)) {
             if (days[date]?.kind === 'leave') setDay(date, null)
           }
         },
       },
-    ])
+    })
   }
 
   if (spans.length === 0) return <Text style={text.muted}>No leave in {year}.</Text>
@@ -57,6 +61,7 @@ export function LeaveList({ year }: { year: number }) {
           />
         </Pressable>
       ))}
+      {dialog}
     </View>
   )
 }

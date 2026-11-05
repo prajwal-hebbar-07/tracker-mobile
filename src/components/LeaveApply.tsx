@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Alert, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Switch, Text, TextInput, View } from 'react-native'
+import { useDialog } from '@/components/Dialog'
 import { MonthHeat } from '@/components/MonthHeat'
 import { Screen } from '@/components/Screen'
 import { Button, Chip, PeriodNav, text } from '@/components/ui'
@@ -29,6 +30,7 @@ export function LeaveApply({ start }: { start: string }) {
   const [leaveType, setLeaveType] = useState<LeaveType>('personal')
   const [weekends, setWeekends] = useState(false)
   const { days, setDay } = useDays()
+  const [dialog, show] = useDialog()
   const dates = leaveDates(from, to, weekends)
   const overwrites = dates.filter((date) => days[date] && days[date].kind !== 'leave')
 
@@ -61,14 +63,12 @@ export function LeaveApply({ start }: { start: string }) {
 
   function apply() {
     if (overwrites.length === 0) return commit()
-    Alert.alert(
-      `Replace ${plural(overwrites.length, 'logged day')}?`,
-      `${overwrites.map(formatShort).join(', ')} already ${overwrites.length === 1 ? 'has' : 'have'} a record. ${overwrites.length === 1 ? 'It' : 'They'} will become leave.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Replace', style: 'destructive', onPress: commit },
-      ],
-    )
+    show({
+      title: `Replace ${plural(overwrites.length, 'logged day')}?`,
+      message: `${overwrites.map(formatShort).join(', ')} already ${overwrites.length === 1 ? 'has' : 'have'} a record. ${overwrites.length === 1 ? 'It' : 'They'} will become leave.`,
+      icon: 'calendar-alert',
+      action: { label: 'Replace', destructive: true, onPress: commit },
+    })
   }
 
   return (
@@ -85,6 +85,7 @@ export function LeaveApply({ start }: { start: string }) {
         />
       }
     >
+      {dialog}
       <View style={styles.summary}>
         <Text selectable style={styles.count}>
           {formatRange(from, to)}

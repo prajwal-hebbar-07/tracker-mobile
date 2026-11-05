@@ -1,7 +1,8 @@
 import Constants from 'expo-constants'
 import * as Updates from 'expo-updates'
 import { useState } from 'react'
-import { Alert, Share, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Share, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useDialog } from '@/components/Dialog'
 import { Screen } from '@/components/Screen'
 import { Button, Section, text } from '@/components/ui'
 import { cleanDays, formatLong, plural, toCsv, type Days } from '@/logic'
@@ -50,6 +51,7 @@ function Restore({ onRestore }: { onRestore: (days: Days) => void }) {
   const [open, setOpen] = useState(false)
   const [paste, setPaste] = useState('')
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const [dialog, show] = useDialog()
 
   function restore() {
     let parsed: unknown
@@ -65,11 +67,13 @@ function Restore({ onRestore }: { onRestore: (days: Days) => void }) {
       return
     }
     const count = Object.keys(cleaned).length
-    Alert.alert('Replace the log on this phone?', `${plural(count, 'day')} will replace everything stored now.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Replace',
-        style: 'destructive',
+    show({
+      title: 'Replace the log on this phone?',
+      message: `${plural(count, 'day')} will replace everything stored now.`,
+      icon: 'backup-restore',
+      action: {
+        label: 'Replace',
+        destructive: true,
         onPress: () => {
           onRestore(cleaned)
           setPaste('')
@@ -77,7 +81,7 @@ function Restore({ onRestore }: { onRestore: (days: Days) => void }) {
           setMessage({ ok: true, text: `Restored ${plural(count, 'day')}.` })
         },
       },
-    ])
+    })
   }
 
   return (
@@ -103,6 +107,7 @@ function Restore({ onRestore }: { onRestore: (days: Days) => void }) {
         <Button label="Restore from backup" icon="backup-restore" onPress={() => setOpen(true)} />
       )}
       {message ? <Text style={message.ok ? styles.ok : text.danger}>{message.text}</Text> : null}
+      {dialog}
     </Section>
   )
 }
