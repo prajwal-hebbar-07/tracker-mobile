@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { StyleSheet, Text, View } from 'react-native'
 import { DayEditor } from '@/components/DayEditor'
 import { Screen } from '@/components/Screen'
+import { TodayCard } from '@/components/TodayCard'
 import { IconButton } from '@/components/ui'
 import { addDays, isDateKey, parseDateKey, todayKey } from '@/logic'
 import { useDays } from '@/store'
@@ -29,7 +30,11 @@ export default function DayScreen() {
         </View>
         <IconButton icon="chevron-right" label="Next day" tint={color.office} onPress={() => router.setParams({ date: addDays(date, 1) })} />
       </View>
-      <DayEditor key={`${date}:${generation}`} date={date} day={days[date]} onChange={(day) => setDay(date, day)} />
+      {date === today ? (
+        <TodayCard />
+      ) : (
+        <DayEditor key={`${date}:${generation}`} day={days[date]} onChange={(day) => setDay(date, day)} />
+      )}
     </Screen>
   )
 }

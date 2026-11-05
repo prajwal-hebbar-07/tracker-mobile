@@ -36,10 +36,10 @@ export function inkFor(name: Tone): string {
   return name === 'office' || name === 'wfh' ? color.ink : color.text
 }
 
-export const kindMeta: Record<Kind, { label: string; short: string; icon: IconName; tint: string }> = {
-  office: { label: 'Office', short: 'Office', icon: 'office-building-outline', tint: color.office },
-  wfh: { label: 'Work from home', short: 'Home', icon: 'home-outline', tint: color.wfh },
-  leave: { label: 'Leave', short: 'Leave', icon: 'palm-tree', tint: color.leave },
+export const kindMeta: Record<Kind, { icon: IconName; tint: string }> = {
+  office: { icon: 'office-building-outline', tint: color.office },
+  wfh: { icon: 'home-outline', tint: color.wfh },
+  leave: { icon: 'palm-tree', tint: color.leave },
 }
 
 export const leaveIcon: Record<LeaveType, IconName> = {

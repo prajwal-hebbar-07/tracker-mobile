@@ -9,47 +9,37 @@ const hours = Array.from({ length: 24 }, (_, hour) => hour)
 const minutes = Array.from({ length: 12 }, (_, index) => index * 5)
 const pad = (value: number) => String(value).padStart(2, '0')
 
-function split(value?: string): { hour: number; minute: number } {
-  const [hour, minute] = (value ?? timeNow()).split(':').map(Number)
+function split(value: string): { hour: number; minute: number } {
+  const [hour, minute] = value.split(':').map(Number)
   return { hour, minute }
 }
 
-// A clock field that opens a grid picker: no keyboard, no format to get wrong.
-export function TimeField({
-  label,
-  value,
-  invalid = false,
-  onChange,
-}: {
-  label: string
-  value?: string
-  invalid?: boolean
-  onChange: (value: string | undefined) => void
-}) {
+// A recorded clock time. Tap it to correct it in a grid picker: no keyboard, no format to get wrong.
+export function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <View style={styles.field}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${label} time, ${value ?? 'not set'}`}
-          onPress={() => setOpen(true)}
-          android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
-          style={[styles.box, invalid && styles.boxBad]}
-        >
-          <Text style={styles.label}>{label}</Text>
-          <Text style={[styles.value, !value && styles.placeholder]}>{value ?? '--:--'}</Text>
-        </Pressable>
-        <Button label="Now" compact onPress={() => onChange(timeNow())} accessibilityLabel={`Set ${label} to now`} />
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label} ${value}. Change time.`}
+        onPress={() => setOpen(true)}
+        android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
+        style={styles.box}
+      >
+        <Text style={styles.label}>{label}</Text>
+        <View style={styles.valueRow}>
+          <Text style={styles.value}>{value}</Text>
+          <Icon name="pencil-outline" size={16} tint={color.faint} />
+        </View>
+      </Pressable>
       {open ? (
         <TimePicker
           label={label}
           value={value}
           onClose={() => setOpen(false)}
           onPick={(next) => {
-            onChange(next)
             setOpen(false)
+            onChange(next)
           }}
         />
       ) : null}
@@ -64,9 +54,9 @@ function TimePicker({
   onPick,
 }: {
   label: string
-  value?: string
+  value: string
   onClose: () => void
-  onPick: (value: string | undefined) => void
+  onPick: (value: string) => void
 }) {
   const start = split(value)
   const [hour, setHour] = useState(start.hour)
@@ -85,7 +75,7 @@ function TimePicker({
         <Pressable style={StyleSheet.absoluteFill} accessibilityLabel="Close" onPress={onClose} />
         <View style={[styles.sheet, { paddingBottom: 16 + bottom }]}>
           <View style={styles.head}>
-            <Text style={styles.title}>{label} time</Text>
+            <Text style={styles.title}>{label}</Text>
             <IconButton icon="close" label="Close" onPress={onClose} tint={color.muted} />
           </View>
           <View style={styles.readout}>
@@ -110,7 +100,6 @@ function TimePicker({
           </View>
 
           <View style={styles.actions}>
-            {value ? <Button label="Clear" variant="danger" onPress={() => onPick(undefined)} /> : null}
             <Button
               label="Now"
               icon="clock-outline"
@@ -120,7 +109,7 @@ function TimePicker({
                 setMinute(now.minute)
               }}
             />
-            <Button label="Set" icon="check" variant="primary" grow onPress={() => onPick(`${pad(hour)}:${pad(minute)}`)} />
+            <Button label="Save" icon="check" variant="primary" grow onPress={() => onPick(`${pad(hour)}:${pad(minute)}`)} />
           </View>
         </View>
       </View>
@@ -143,36 +132,23 @@ function Cell({ label, selected, onPress }: { label: string; selected: boolean; 
   )
 }
 
-export function Duration({ minutes: mins }: { minutes: number | null }) {
-  return (
-    <View style={styles.duration}>
-      <Icon name="timer-outline" size={18} tint={color.muted} />
-      <Text style={styles.durationText}>
-        {mins == null ? 'Set both times to see hours' : `${Math.floor(mins / 60)}h ${pad(mins % 60)}m worked`}
-      </Text>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
-  field: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   box: {
     flex: 1,
-    minHeight: 56,
+    minHeight: 64,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: color.line,
     backgroundColor: color.raised,
     paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 10,
+    justifyContent: 'center',
+    gap: 2,
     overflow: 'hidden',
   },
-  boxBad: { borderColor: color.danger },
-  label: { color: color.muted, fontSize: 14, fontWeight: '600' },
+  label: { color: color.muted, fontSize: 13, fontWeight: '600' },
+  valueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   value: { color: color.text, fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  placeholder: { color: color.faint },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: {
     backgroundColor: color.card,
@@ -202,6 +178,4 @@ const styles = StyleSheet.create({
   cellText: { color: color.text, fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
   cellTextOn: { color: color.ink },
   actions: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  duration: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  durationText: { color: color.muted, fontSize: 15 },
 })
