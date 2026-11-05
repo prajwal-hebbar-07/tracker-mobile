@@ -1,38 +1,26 @@
+import { Link } from 'expo-router'
 import * as Updates from 'expo-updates'
-import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native'
-import { MonthHeat } from '@/components/MonthHeat'
 import { Screen } from '@/components/Screen'
-import { cleanDays, formatMinutes, summarize, todayKey, type Days } from '@/logic'
+import { cleanDays, formatMinutes, leaveCounts, leaveTypes, summarize, todayKey, type Days } from '@/logic'
 import { useDays } from '@/store'
-import { color, toneColor } from '@/theme'
-
-const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
+import { color } from '@/theme'
 
 export default function DashboardScreen() {
   const today = todayKey()
-  const [year, setYear] = useState(Number(today.slice(0, 4)))
+  const year = today.slice(0, 4)
   const { days, replaceAll } = useDays()
-  const yearSummary = summarize(days, { today, prefix: String(year) })
+  const yearSummary = summarize(days, { today, prefix: year })
   const all = summarize(days, { today })
-  const router = useRouter()
+  const leaves = leaveCounts(days, year)
 
   return (
     <Screen>
-      <View style={styles.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous year" onPress={() => setYear((value) => value - 1)} style={styles.arrow}>
-          <Text style={styles.arrowText}>‹</Text>
-        </Pressable>
-        <Text style={styles.year}>{year}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next year" onPress={() => setYear((value) => value + 1)} style={styles.arrow}>
-          <Text style={styles.arrowText}>›</Text>
-        </Pressable>
-      </View>
-
+      <Text style={styles.section}>{year}</Text>
       <View style={styles.stats}>
         <Stat label="Office" value={String(yearSummary.office)} />
-        <Stat label="WFH" value={String(yearSummary.wfh)} />
+        <Stat label="From home" value={String(yearSummary.wfh)} />
         <Stat label="Leave" value={String(yearSummary.leave)} />
         <Stat label="Hours" value={formatMinutes(yearSummary.minutes)} />
       </View>
@@ -45,25 +33,34 @@ export default function DashboardScreen() {
       {yearSummary.officeMissing > 0 ? (
         <Text style={styles.meta}>{yearSummary.officeMissing} office days have no complete clock times.</Text>
       ) : null}
-      <Text style={styles.meta}>
-        All time · {all.office} office · {all.wfh} WFH · {all.leave} leave · {formatMinutes(all.minutes)}
-      </Text>
 
-      <Text style={styles.section}>Office hours</Text>
-      <HoursBars months={yearSummary.months} />
+      <Text style={styles.section}>All time</Text>
+      <View style={styles.stats}>
+        <Stat label="Office" value={String(all.office)} />
+        <Stat label="From home" value={String(all.wfh)} />
+        <Stat label="Leave" value={String(all.leave)} />
+        <Stat label="Hours" value={formatMinutes(all.minutes)} />
+      </View>
 
-      <Text style={styles.section}>Year</Text>
-      <Legend />
-      {Array.from({ length: 12 }, (_, month) => (
-        <MonthHeat
-          key={month}
-          titled
-          year={year}
-          month={month}
-          days={days}
-          onPick={(date) => router.push({ pathname: '/day', params: { date } })}
-        />
+      <Text style={styles.section}>Leaves in {year}</Text>
+      {leaveTypes.map((item) => (
+        <View key={item.id} style={styles.leaveRow}>
+          <Text style={styles.leaveLabel}>{item.label}</Text>
+          <Text style={styles.leaveValue}>{leaves[item.id]}</Text>
+        </View>
       ))}
+      {leaves.unmarked > 0 ? (
+        <View style={styles.leaveRow}>
+          <Text style={styles.leaveLabel}>Leave</Text>
+          <Text style={styles.leaveValue}>{leaves.unmarked}</Text>
+        </View>
+      ) : null}
+      <Link href="/leaves" asChild>
+        <Pressable accessibilityRole="button" style={styles.leaveRow}>
+          <Text style={styles.leaveLabel}>All leave taken</Text>
+          <Text style={styles.leaveLink}>{all.leave} ›</Text>
+        </Pressable>
+      </Link>
 
       <Backup days={days} onRestore={replaceAll} />
       <UpdateCheck />
@@ -76,45 +73,6 @@ function Stat({ label, value }: { label: string; value: string }) {
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  )
-}
-
-function HoursBars({ months: values }: { months: number[] }) {
-  const max = Math.max(...values, 1)
-  const empty = values.every((mins) => mins === 0)
-  if (empty) return <Text style={styles.meta}>No office hours this year.</Text>
-  return (
-    <View style={styles.chart}>
-      {values.map((mins, index) => (
-        <View key={months[index] + index} style={styles.barCol}>
-          <View style={styles.barTrack}>
-            <View style={[styles.barFill, { height: mins === 0 ? 0 : Math.max(4, (mins / max) * 72) }]} />
-          </View>
-          <Text style={styles.barLabel}>{months[index]}</Text>
-        </View>
-      ))}
-    </View>
-  )
-}
-
-function Legend() {
-  const items = [
-    ['Office', toneColor['office-full']],
-    ['Short', toneColor['office-short']],
-    ['No clock', toneColor['office-open']],
-    ['WFH', toneColor.wfh],
-    ['Leave', toneColor.leave],
-    ['Empty', toneColor.none],
-  ] as const
-  return (
-    <View style={styles.legend}>
-      {items.map(([label, swatch]) => (
-        <View key={label} style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: swatch }]} />
-          <Text style={styles.legendText}>{label}</Text>
-        </View>
-      ))}
     </View>
   )
 }
@@ -239,10 +197,6 @@ function UpdateCheck() {
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  year: { color: color.text, fontSize: 28, fontWeight: '600' },
-  arrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  arrowText: { color: color.office, fontSize: 28, lineHeight: 32 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: {
     flexBasis: '46%',
@@ -256,15 +210,17 @@ const styles = StyleSheet.create({
   statLabel: { color: color.muted, fontSize: 13 },
   meta: { color: color.muted, fontSize: 14, lineHeight: 20 },
   section: { color: color.text, fontSize: 18, fontWeight: '600', marginTop: 8 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 96 },
-  barCol: { flex: 1, alignItems: 'center', gap: 6 },
-  barTrack: { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  barFill: { width: '100%', backgroundColor: color.office, borderRadius: 4 },
-  barLabel: { color: color.faint, fontSize: 11, fontWeight: '700' },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendSwatch: { width: 12, height: 12, borderRadius: 3 },
-  legendText: { color: color.muted, fontSize: 12 },
+  leaveRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: color.line,
+  },
+  leaveLabel: { color: color.text, fontSize: 16 },
+  leaveValue: { color: color.text, fontSize: 16, fontWeight: '600' },
+  leaveLink: { color: color.office, fontSize: 16, fontWeight: '600' },
   block: { gap: 10 },
   button: {
     minHeight: 48,
