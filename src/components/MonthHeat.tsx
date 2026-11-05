@@ -1,24 +1,28 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { formatMonth, monthCells, todayKey, tone, type Days } from '@/logic'
+import { formatLong, monthCells, todayKey, tone, type Days, type Tone } from '@/logic'
 import { color, inkFor, toneColor } from '@/theme'
 
-const dow = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const dow = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
+const toneWords: Record<Tone, string> = {
+  none: 'nothing recorded',
+  wfh: 'work from home',
+  leave: 'leave',
+  office: 'office',
+  'office-open': 'office, clock times incomplete',
+}
 
 export function MonthHeat({
   year,
   month,
   days,
-  selected,
   span,
-  titled = false,
   onPick,
 }: {
   year: number
   month: number
   days: Days
-  selected?: string
   span?: { from: string; to: string }
-  titled?: boolean
   onPick?: (date: string) => void
 }) {
   const today = todayKey()
@@ -27,10 +31,9 @@ export function MonthHeat({
   const spanEnd = span ? (span.from <= span.to ? span.to : span.from) : ''
   return (
     <View style={styles.wrap}>
-      {titled ? <Text style={styles.title}>{formatMonth(year, month)}</Text> : null}
       <View style={styles.row}>
         {dow.map((label, index) => (
-          <Text key={`${label}${index}`} style={styles.dow}>
+          <Text key={`${label}${index}`} style={[styles.dow, index >= 5 && styles.dowWeekend]}>
             {label}
           </Text>
         ))}
@@ -39,13 +42,14 @@ export function MonthHeat({
         {cells.map((key, index) => {
           if (!key) return <View key={`empty-${index}`} style={styles.cell} />
           const name = tone(days[key] ?? null)
-          const selectedDay = key === selected
           const inSpan = Boolean(spanStart && key >= spanStart && key <= spanEnd)
+          const future = key > today
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
-              accessibilityLabel={`${key}, ${name === 'none' ? 'empty' : name}`}
+              accessibilityState={{ selected: inSpan }}
+              accessibilityLabel={`${formatLong(key)}, ${toneWords[name]}`}
               onPress={() => onPick?.(key)}
               style={styles.cell}
             >
@@ -53,12 +57,22 @@ export function MonthHeat({
                 style={[
                   styles.swatch,
                   { backgroundColor: toneColor[name] },
+                  future && name === 'none' && styles.future,
                   inSpan && styles.span,
-                  selectedDay && styles.selected,
-                  key === today && !selectedDay && styles.today,
+                  key === today && styles.today,
                 ]}
               >
-                <Text style={[styles.num, { color: inkFor(name) }]}>{Number(key.slice(8))}</Text>
+                <Text
+                  style={[
+                    styles.num,
+                    { color: inkFor(name) },
+                    name === 'none' && index % 7 >= 5 && styles.numWeekend,
+                    key === today && name === 'none' && styles.numToday,
+                    inSpan && styles.numSpan,
+                  ]}
+                >
+                  {Number(key.slice(8))}
+                </Text>
               </View>
             </Pressable>
           )
@@ -68,16 +82,49 @@ export function MonthHeat({
   )
 }
 
+export function Legend() {
+  const items = [
+    ['Office', toneColor.office],
+    ['Home', toneColor.wfh],
+    ['Leave', toneColor.leave],
+  ] as const
+  return (
+    <View style={styles.legend}>
+      {items.map(([label, swatch]) => (
+        <View key={label} style={styles.legendItem}>
+          <View style={[styles.legendSwatch, { backgroundColor: swatch }]} />
+          <Text style={styles.legendText}>{label}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
-  wrap: { gap: 8 },
-  title: { color: color.text, fontSize: 16, fontWeight: '600' },
+  wrap: { gap: 6 },
   row: { flexDirection: 'row' },
-  dow: { width: '14.28%', textAlign: 'center', color: color.faint, fontSize: 11, fontWeight: '700' },
+  dow: { width: '14.28%', textAlign: 'center', color: color.muted, fontSize: 12, fontWeight: '700' },
+  dowWeekend: { color: color.faint },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: '14.28%', aspectRatio: 1, padding: 2 },
-  swatch: { flex: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  span: { borderWidth: 2, borderColor: color.text },
-  selected: { borderWidth: 2, borderColor: color.text },
-  today: { borderWidth: 1, borderColor: color.office },
-  num: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  cell: { width: '14.28%', aspectRatio: 1, padding: 3 },
+  swatch: {
+    flex: 1,
+    borderRadius: 10,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  future: { backgroundColor: 'transparent' },
+  span: { borderColor: color.leave, backgroundColor: color.leaveSoft, borderWidth: 2 },
+  today: { borderColor: color.office },
+  num: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  numWeekend: { color: color.faint },
+  numToday: { color: color.office },
+  numSpan: { color: color.text },
+  legend: { flexDirection: 'row', justifyContent: 'center', columnGap: 16 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendSwatch: { width: 12, height: 12, borderRadius: 4 },
+  legendText: { color: color.muted, fontSize: 12 },
 })

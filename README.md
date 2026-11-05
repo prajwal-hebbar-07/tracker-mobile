@@ -1,6 +1,11 @@
 # Logbook
 
-Personal attendance log for one Android phone. Office days keep clock-in and clock-out. Work-from-home days count without hours. Leave days are listed on their own. The dashboard is the year: totals, office-hour bars, and a heatmap. The log stays on the phone.
+Personal attendance and leave log for one Android phone, dark theme only. The log stays on the phone.
+
+- **Today**: clock in and out, mark work from home, or apply leave. A single line flags weekdays you forgot to log.
+- **Calendar**: a month at a glance. Tap any date to log or fix it. **Share month** sends a readable list of every day.
+- **Report**: the year in one place. Totals, a month-by-month table, leave by type with dates and notes, and **Share report**. Apply or remove leave here. When you apply leave over a range, weekends are skipped unless you turn on **Count weekends**.
+- **Settings** (gear icon): export as CSV or JSON, restore a backup, check for an update.
 
 ## Use it while building
 
@@ -20,10 +25,10 @@ Expo can update the JavaScript inside an installed app without a new APK. The ph
 2. Run `npx eas-cli@latest update:configure`. Commit the project id it writes into `app.json`.
 3. Create an access token at [expo.dev/settings/access-tokens](https://expo.dev/settings/access-tokens) and save it as the `EXPO_TOKEN` repository secret.
 4. Build the installable APK once: `npx eas-cli@latest build -p android --profile preview`. Install that APK. It listens to the `preview` channel.
-5. Push to `main`. The workflow publishes an update. Open the app and let it sit, then open it again, or tap **Check for update** on the dashboard.
+5. Push to `main`. The workflow publishes an update. Open the app and let it sit, then open it again, or tap **Check for update** in Settings.
 
 Keep `expo.version` at `1.0.0` until you install a new APK. That version is the runtime id, so a published update only reaches builds with the same version. Bump it when a new native module forces a new build, then build and install again.
 
-Export a backup from the dashboard before switching from Expo Go to the APK. The two installs do not share a log.
+Export a backup from Settings before switching from Expo Go to the APK. The two installs do not share a log.
 
 JavaScript and asset changes ship through the workflow. A new native dependency needs a new APK from step 4.

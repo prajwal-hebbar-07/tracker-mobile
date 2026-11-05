@@ -1,62 +1,42 @@
-import { useLocalSearchParams } from 'expo-router'
-import { useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { StyleSheet, Text, View } from 'react-native'
 import { DayEditor } from '@/components/DayEditor'
-import { MonthHeat } from '@/components/MonthHeat'
 import { Screen } from '@/components/Screen'
-import { formatMonth, isDateKey, parseDateKey, todayKey } from '@/logic'
+import { IconButton } from '@/components/ui'
+import { addDays, isDateKey, parseDateKey, todayKey } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 
-export default function LogScreen() {
+export default function DayScreen() {
   const params = useLocalSearchParams<{ date?: string }>()
-  const paramDate = typeof params.date === 'string' && isDateKey(params.date) ? params.date : ''
-  return <LogBody key={paramDate || 'today'} opening={paramDate} />
-}
-
-function LogBody({ opening }: { opening: string }) {
+  const router = useRouter()
   const today = todayKey()
-  const start = parseDateKey(opening || today)
-  const [cursor, setCursor] = useState({ year: start.getFullYear(), month: start.getMonth() })
-  const [selected, setSelected] = useState(opening || today)
+  const date = typeof params.date === 'string' && isDateKey(params.date) ? params.date : today
   const { days, generation, setDay } = useDays()
-
-  function shift(delta: number) {
-    const next = new Date(cursor.year, cursor.month + delta, 1)
-    setCursor({ year: next.getFullYear(), month: next.getMonth() })
-  }
+  const relative = date === today ? 'Today' : date === addDays(today, -1) ? 'Yesterday' : date === addDays(today, 1) ? 'Tomorrow' : ''
+  const year = parseDateKey(date).getFullYear()
 
   return (
-    <Screen>
-      <View style={styles.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => shift(-1)} style={styles.arrow}>
-          <Text style={styles.arrowText}>‹</Text>
-        </Pressable>
-        <Text style={styles.month}>{formatMonth(cursor.year, cursor.month)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => shift(1)} style={styles.arrow}>
-          <Text style={styles.arrowText}>›</Text>
-        </Pressable>
+    <Screen inset>
+      <View style={styles.nav}>
+        <IconButton icon="chevron-left" label="Previous day" tint={color.office} onPress={() => router.setParams({ date: addDays(date, -1) })} />
+        <View style={styles.title}>
+          <Text style={styles.date}>{parseDateKey(date).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+          <Text style={styles.sub}>
+            {relative ? `${relative} · ` : ''}
+            {year}
+          </Text>
+        </View>
+        <IconButton icon="chevron-right" label="Next day" tint={color.office} onPress={() => router.setParams({ date: addDays(date, 1) })} />
       </View>
-      <MonthHeat
-        year={cursor.year}
-        month={cursor.month}
-        days={days}
-        selected={selected}
-        onPick={setSelected}
-      />
-      <DayEditor
-        key={`${selected}:${generation}`}
-        date={selected}
-        day={days[selected]}
-        onChange={(day) => setDay(selected, day)}
-      />
+      <DayEditor key={`${date}:${generation}`} date={date} day={days[date]} onChange={(day) => setDay(date, day)} />
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  month: { color: color.text, fontSize: 18, fontWeight: '600' },
-  arrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  arrowText: { color: color.office, fontSize: 28, lineHeight: 32 },
+  nav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { flex: 1, alignItems: 'center', gap: 2 },
+  date: { color: color.text, fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  sub: { color: color.muted, fontSize: 14 },
 })

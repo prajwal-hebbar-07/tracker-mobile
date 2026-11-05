@@ -1,9 +1,10 @@
 import { DarkTheme, ThemeProvider } from 'expo-router'
 import { Stack } from 'expo-router/stack'
 import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { Icon } from '@/components/ui'
 import { DaysProvider, useDays } from '@/store'
-import { color, toneColor } from '@/theme'
+import { color } from '@/theme'
 
 const navTheme = {
   ...DarkTheme,
@@ -14,7 +15,7 @@ const navTheme = {
     text: color.text,
     border: color.line,
     primary: color.office,
-    notification: toneColor.leave,
+    notification: color.leave,
   },
 }
 
@@ -34,15 +35,19 @@ function Gate() {
   if (!ready) {
     return (
       <View style={styles.boot}>
-        <Text style={styles.bootText}>Opening log…</Text>
+        <ActivityIndicator color={color.office} />
+        <Text style={styles.bootText}>Opening your log…</Text>
       </View>
     )
   }
   if (!writable) {
     return (
       <View style={styles.boot}>
+        <Icon name="alert-circle-outline" size={40} tint={color.danger} />
         <Text style={styles.bootTitle}>Log unavailable</Text>
-        <Text style={styles.bootText}>{error}</Text>
+        <Text selectable style={styles.bootText}>
+          {error}
+        </Text>
       </View>
     )
   }
@@ -52,7 +57,7 @@ function Gate() {
         headerStyle: { backgroundColor: color.bg },
         headerTintColor: color.text,
         headerShadowVisible: false,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: { fontWeight: '700' },
         contentStyle: { backgroundColor: color.bg },
       }}
     >
@@ -66,8 +71,8 @@ function Gate() {
           title: 'Apply leave',
         }}
       />
-      <Stack.Screen name="leaves" options={{ title: 'Leaves' }} />
       <Stack.Screen name="day" options={{ title: 'Day' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings & backup' }} />
     </Stack>
   )
 }
@@ -79,8 +84,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 28,
-    gap: 8,
+    gap: 10,
   },
-  bootTitle: { color: color.text, fontSize: 22, fontWeight: '600' },
+  bootTitle: { color: color.text, fontSize: 22, fontWeight: '700' },
   bootText: { color: color.muted, fontSize: 16, textAlign: 'center', lineHeight: 22 },
 })

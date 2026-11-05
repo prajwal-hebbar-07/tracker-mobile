@@ -1,28 +1,50 @@
-import type { Tone } from '@/logic'
+import type { MaterialDesignIconsIconName } from '@react-native-vector-icons/material-design-icons'
+import type { Kind, LeaveType, Tone } from '@/logic'
 
+export type IconName = MaterialDesignIconsIconName
+
+// Dark only: app.json pins userInterfaceStyle to dark, so there is no light table.
 export const color = {
-  bg: '#10120F',
-  card: '#1B1E18',
+  bg: '#0E100D',
+  card: '#181B16',
+  raised: '#21251E',
   line: '#2C3128',
   text: '#F3F1EA',
-  muted: '#9C978C',
+  muted: '#A29D91',
   faint: '#6E6A60',
-  office: '#E2A23A',
+  office: '#E8A93E',
+  wfh: '#7EB8A6',
+  leave: '#E2806C',
+  leaveSoft: '#3A221D',
   ink: '#16140F',
-  danger: '#E07A6A',
+  danger: '#EE7B6B',
+  dangerSoft: '#3A1F1B',
+  success: '#8CC48B',
 }
 
+export const radius = { sm: 10, md: 14, pill: 999 }
+
 export const toneColor: Record<Tone, string> = {
-  none: '#262922',
-  wfh: '#7EAA9C',
-  leave: '#D17B6A',
-  'office-open': '#6A5428',
-  'office-short': '#8C6A2E',
-  'office-mid': '#C4923A',
-  'office-full': '#F0C56A',
+  none: '#1C1F1A',
+  wfh: '#5F9A88',
+  leave: '#C9705F',
+  office: '#E8A93E',
+  'office-open': '#5B4824',
 }
 
 export function inkFor(name: Tone): string {
-  if (name === 'none' || name === 'office-open' || name === 'office-short') return color.text
-  return color.ink
+  return name === 'office' || name === 'wfh' ? color.ink : color.text
+}
+
+export const kindMeta: Record<Kind, { label: string; short: string; icon: IconName; tint: string }> = {
+  office: { label: 'Office', short: 'Office', icon: 'office-building-outline', tint: color.office },
+  wfh: { label: 'Work from home', short: 'Home', icon: 'home-outline', tint: color.wfh },
+  leave: { label: 'Leave', short: 'Leave', icon: 'palm-tree', tint: color.leave },
+}
+
+export const leaveIcon: Record<LeaveType, IconName> = {
+  personal: 'beach',
+  sick: 'thermometer',
+  early: 'clock-fast',
+  lop: 'cash-remove',
 }

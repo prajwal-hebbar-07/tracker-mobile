@@ -1,166 +1,154 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Alert, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
 import { MonthHeat } from '@/components/MonthHeat'
-import { eachDate, formatLong, formatMonth, leaveLabel, leaveTypes, todayKey, type Day, type LeaveType } from '@/logic'
+import { Screen } from '@/components/Screen'
+import { Button, Chip, PeriodNav, text } from '@/components/ui'
+import {
+  formatMonth,
+  formatRange,
+  formatShort,
+  leaveDates,
+  leaveTypes,
+  parseDateKey,
+  plural,
+  type Day,
+  type LeaveType,
+} from '@/logic'
 import { useDays } from '@/store'
-import { color } from '@/theme'
+import { color, leaveIcon, radius } from '@/theme'
 
-export function LeaveApply() {
+export function LeaveApply({ start }: { start: string }) {
   const router = useRouter()
-  const today = todayKey()
-  const start = new Date()
-  const [cursor, setCursor] = useState({ year: start.getFullYear(), month: start.getMonth() })
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
-  const [pickingEnd, setPickingEnd] = useState(false)
+  const opening = parseDateKey(start)
+  const [cursor, setCursor] = useState({ year: opening.getFullYear(), month: opening.getMonth() })
+  const [from, setFrom] = useState(start)
+  const [to, setTo] = useState(start)
+  const [picking, setPicking] = useState<'from' | 'to'>('from')
   const [note, setNote] = useState('')
   const [leaveType, setLeaveType] = useState<LeaveType>('personal')
-  const [typeOpen, setTypeOpen] = useState(false)
+  const [weekends, setWeekends] = useState(false)
   const { days, setDay } = useDays()
-  const dates = eachDate(from, to)
+  const dates = leaveDates(from, to, weekends)
+  const overwrites = dates.filter((date) => days[date] && days[date].kind !== 'leave')
 
   function shift(delta: number) {
     const next = new Date(cursor.year, cursor.month + delta, 1)
     setCursor({ year: next.getFullYear(), month: next.getMonth() })
   }
 
+  // First tap moves the start; the next tap sets the end. Tapping before the start restarts the range.
   function pick(date: string) {
-    if (!pickingEnd) {
+    if (picking === 'from' || date < from) {
       setFrom(date)
       setTo(date)
-      setPickingEnd(true)
+      setPicking('to')
       return
     }
     setTo(date)
-    setPickingEnd(false)
+    setPicking('from')
+  }
+
+  function commit() {
+    const trimmed = note.trim().slice(0, 280)
+    for (const date of dates) {
+      const next: Day = { kind: 'leave', leaveType }
+      if (trimmed) next.note = trimmed
+      setDay(date, next)
+    }
+    router.back()
   }
 
   function apply() {
-    const count = dates.length
-    const replaces = dates.some((date) => days[date] && days[date].kind !== 'leave')
-    const label =
-      count === 1 ? formatLong(dates[0]) : `${formatLong(dates[0])} through ${formatLong(dates[dates.length - 1])}`
+    if (overwrites.length === 0) return commit()
     Alert.alert(
-      `On leave for ${count} ${count === 1 ? 'day' : 'days'}?`,
-      replaces ? `${label}. Days that already have a record will become leave.` : label,
+      `Replace ${plural(overwrites.length, 'logged day')}?`,
+      `${overwrites.map(formatShort).join(', ')} already ${overwrites.length === 1 ? 'has' : 'have'} a record. ${overwrites.length === 1 ? 'It' : 'They'} will become leave.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Apply leave',
-          onPress: () => {
-            const trimmed = note.trim().slice(0, 280)
-            for (const date of dates) {
-              const next: Day = { kind: 'leave', leaveType }
-              if (trimmed) next.note = trimmed
-              setDay(date, next)
-            }
-            router.back()
-          },
-        },
+        { text: 'Replace', style: 'destructive', onPress: commit },
       ],
     )
   }
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.lead}>Select the first day, then the last day.</Text>
-      <View style={styles.bar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => shift(-1)} style={styles.arrow}>
-          <Text style={styles.arrowText}>‹</Text>
-        </Pressable>
-        <Text style={styles.month}>{formatMonth(cursor.year, cursor.month)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => shift(1)} style={styles.arrow}>
-          <Text style={styles.arrowText}>›</Text>
-        </Pressable>
+    <Screen
+      inset
+      footer={
+        <Button
+          label={dates.length === 0 ? 'Pick a working day' : `Apply ${plural(dates.length, 'day')} of leave`}
+          icon="check"
+          variant="primary"
+          tint={color.leave}
+          disabled={dates.length === 0}
+          onPress={apply}
+        />
+      }
+    >
+      <View style={styles.summary}>
+        <Text selectable style={styles.count}>
+          {formatRange(from, to)}
+        </Text>
+        <Text style={text.muted}>
+          {plural(dates.length, 'day')} · {picking === 'to' ? 'tap the last day, or apply for just this one' : 'tap the first day'}
+        </Text>
       </View>
+
+      <PeriodNav noun="month" label={formatMonth(cursor.year, cursor.month)} onPrev={() => shift(-1)} onNext={() => shift(1)} />
       <MonthHeat year={cursor.year} month={cursor.month} days={days} span={{ from, to }} onPick={pick} />
-      <Text style={styles.count}>
-        {dates.length} {dates.length === 1 ? 'day' : 'days'}
-        {dates.length > 1 ? ` · ${formatLong(dates[0])} – ${formatLong(dates[dates.length - 1])}` : ` · ${formatLong(dates[0])}`}
-      </Text>
-      <Text style={styles.fieldLabel}>Leave type</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: typeOpen }}
-        onPress={() => setTypeOpen((open) => !open)}
-        style={styles.dropdown}
-      >
-        <Text style={styles.dropdownText}>{leaveLabel(leaveType)}</Text>
-        <Text style={styles.dropdownMark}>{typeOpen ? '▴' : '▾'}</Text>
-      </Pressable>
-      {typeOpen
-        ? leaveTypes.map((item) => {
-            const selected = item.id === leaveType
-            return (
-              <Pressable
-                key={item.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  setLeaveType(item.id)
-                  setTypeOpen(false)
-                }}
-                style={[styles.option, selected && styles.optionOn]}
-              >
-                <Text style={[styles.optionText, selected && styles.optionTextOn]}>{item.label}</Text>
-              </Pressable>
-            )
-          })
-        : null}
-      <TextInput
-        value={note}
-        onChangeText={setNote}
-        placeholder="Why you're taking this leave"
-        placeholderTextColor={color.faint}
-        maxLength={280}
-        multiline
-        style={styles.note}
-      />
-      <Pressable accessibilityRole="button" onPress={apply} style={styles.apply}>
-        <Text style={styles.applyText}>Apply leave</Text>
-      </Pressable>
-    </View>
+
+      <View style={styles.toggle}>
+        <Text style={[text.body, styles.toggleText]}>Count weekends</Text>
+        <Switch
+          value={weekends}
+          onValueChange={setWeekends}
+          trackColor={{ false: color.raised, true: color.leave }}
+          thumbColor={color.text}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={text.label}>Leave type</Text>
+        <View style={styles.chips}>
+          {leaveTypes.map((item) => (
+            <Chip
+              key={item.id}
+              label={item.label}
+              icon={leaveIcon[item.id]}
+              tint={color.leave}
+              selected={item.id === leaveType}
+              onPress={() => setLeaveType(item.id)}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={text.label}>Note</Text>
+        <TextInput
+          value={note}
+          onChangeText={setNote}
+          placeholder="Reason, approval, who you told…"
+          placeholderTextColor={color.faint}
+          maxLength={280}
+          multiline
+          style={styles.note}
+        />
+      </View>
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 16 },
-  lead: { color: color.muted, fontSize: 15, lineHeight: 21 },
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  month: { color: color.text, fontSize: 18, fontWeight: '600' },
-  arrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  arrowText: { color: color.office, fontSize: 28, lineHeight: 32 },
-  count: { color: color.text, fontSize: 18, fontWeight: '600' },
-  fieldLabel: { color: color.muted, fontSize: 13, fontWeight: '700' },
-  dropdown: {
-    minHeight: 52,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    backgroundColor: color.card,
-    borderWidth: 1,
-    borderColor: color.line,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dropdownText: { color: color.text, fontSize: 16, fontWeight: '600' },
-  dropdownMark: { color: color.office, fontSize: 14 },
-  option: {
-    minHeight: 48,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-    backgroundColor: color.card,
-    borderWidth: 1,
-    borderColor: color.line,
-  },
-  optionOn: { backgroundColor: color.office, borderColor: color.office },
-  optionText: { color: color.text, fontSize: 16 },
-  optionTextOn: { color: color.ink, fontWeight: '700' },
+  summary: { gap: 2 },
+  count: { color: color.text, fontSize: 22, fontWeight: '700' },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  toggleText: { flex: 1 },
+  section: { gap: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   note: {
     minHeight: 88,
-    borderRadius: 12,
+    borderRadius: radius.md,
     padding: 14,
     color: color.text,
     backgroundColor: color.card,
@@ -169,12 +157,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlignVertical: 'top',
   },
-  apply: {
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: color.office,
-  },
-  applyText: { color: color.ink, fontSize: 16, fontWeight: '700' },
 })

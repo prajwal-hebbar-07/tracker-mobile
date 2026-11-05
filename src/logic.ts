@@ -34,14 +34,8 @@ export type Day = {
 
 export type Days = Record<string, Day>
 
-export type Tone =
-  | 'none'
-  | 'wfh'
-  | 'leave'
-  | 'office-open'
-  | 'office-short'
-  | 'office-mid'
-  | 'office-full'
+// Calendar colour for a day. An office day without both clock times is "open" and shown dimmer.
+export type Tone = 'none' | 'wfh' | 'leave' | 'office' | 'office-open'
 
 export type Summary = {
   office: number
@@ -54,6 +48,8 @@ export type Summary = {
   weekdaysMarked: number
   months: number[]
   leaves: string[]
+  // Past weekdays in range with nothing recorded, oldest first.
+  unmarked: string[]
 }
 
 export function isDateKey(value: string): boolean {
@@ -126,23 +122,54 @@ export function eachDate(from: string, to: string): string[] {
   return dates
 }
 
-export function leaveSpans(days: Days): { from: string; to: string; leaveType?: LeaveType; note?: string }[] {
+export function isWeekend(key: string): boolean {
+  const weekday = parseDateKey(key).getDay()
+  return weekday === 0 || weekday === 6
+}
+
+// Leave days in a picked range. Weekends are skipped unless asked for, since they are not working days.
+export function leaveDates(from: string, to: string, includeWeekends: boolean): string[] {
+  const dates = eachDate(from, to)
+  return includeWeekends ? dates : dates.filter((date) => !isWeekend(date))
+}
+
+export type LeaveSpan = { from: string; to: string; count: number; leaveType?: LeaveType; note?: string }
+
+// A span continues across an empty weekend, so Fri + Mon off reads as one leave of 2 days.
+function bridges(days: Days, lastTo: string, date: string): boolean {
+  for (let cursor = addDays(lastTo, 1); cursor < date; cursor = addDays(cursor, 1)) {
+    if (!isWeekend(cursor) || days[cursor]) return false
+  }
+  return true
+}
+
+export function leaveSpans(days: Days): LeaveSpan[] {
   const dates = Object.entries(days)
     .filter(([, day]) => day.kind === 'leave')
     .map(([date]) => date)
     .sort()
-  const spans: { from: string; to: string; leaveType?: LeaveType; note?: string }[] = []
+  const spans: LeaveSpan[] = []
   for (const date of dates) {
     const day = days[date]
     if (!day) continue
     const last = spans[spans.length - 1]
     const same =
       last &&
-      addDays(last.to, 1) === date &&
+      bridges(days, last.to, date) &&
       last.leaveType === day.leaveType &&
       (last.note ?? '') === (day.note ?? '')
-    if (last && same) last.to = date
-    else spans.push({ from: date, to: date, ...(day.leaveType ? { leaveType: day.leaveType } : {}), ...(day.note ? { note: day.note } : {}) })
+    if (last && same) {
+      last.to = date
+      last.count += 1
+    } else {
+      spans.push({
+        from: date,
+        to: date,
+        count: 1,
+        ...(day.leaveType ? { leaveType: day.leaveType } : {}),
+        ...(day.note ? { note: day.note } : {}),
+      })
+    }
   }
   return spans
 }
@@ -173,11 +200,7 @@ export function tone(day: Day | null): Tone {
   if (!day) return 'none'
   if (day.kind === 'wfh') return 'wfh'
   if (day.kind === 'leave') return 'leave'
-  const mins = minutesBetween(day.in, day.out)
-  if (mins == null) return 'office-open'
-  if (mins < 240) return 'office-short'
-  if (mins < 480) return 'office-mid'
-  return 'office-full'
+  return minutesBetween(day.in, day.out) == null ? 'office-open' : 'office'
 }
 
 export function cleanDay(value: unknown): Day | null {
@@ -215,13 +238,19 @@ export function cleanDays(value: unknown): Days | null {
   return days
 }
 
+// Weeks start on Monday so the weekend sits together at the end of each row.
 export function monthCells(year: number, monthIndex: number): (string | null)[] {
   const first = new Date(year, monthIndex, 1)
   const count = new Date(year, monthIndex + 1, 0).getDate()
-  const cells: (string | null)[] = Array.from({ length: first.getDay() }, () => null)
+  const cells: (string | null)[] = Array.from({ length: (first.getDay() + 6) % 7 }, () => null)
   for (let day = 1; day <= count; day += 1) cells.push(dateKey(new Date(year, monthIndex, day)))
   while (cells.length % 7 !== 0) cells.push(null)
   return cells
+}
+
+export function weekOf(key: string): string[] {
+  const monday = addDays(key, -((parseDateKey(key).getDay() + 6) % 7))
+  return Array.from({ length: 7 }, (_, index) => addDays(monday, index))
 }
 
 function rangeFor(prefix: string | undefined, today: string, days: Days): { from: string; to: string } | null {
@@ -258,6 +287,7 @@ export function summarize(days: Days, opts: { today: string; prefix?: string }):
     weekdaysMarked: 0,
     months: Array.from({ length: 12 }, () => 0),
     leaves: [],
+    unmarked: [],
   }
 
   for (const [date, day] of Object.entries(days)) {
@@ -282,10 +312,106 @@ export function summarize(days: Days, opts: { today: string; prefix?: string }):
   const range = rangeFor(opts.prefix, opts.today, days)
   if (!range) return summary
   for (let cursor = range.from; cursor <= range.to; cursor = addDays(cursor, 1)) {
-    const weekday = parseDateKey(cursor).getDay()
-    if (weekday === 0 || weekday === 6) continue
+    if (isWeekend(cursor)) continue
     summary.weekdays += 1
     if (days[cursor]) summary.weekdaysMarked += 1
+    else summary.unmarked.push(cursor)
   }
   return summary
+}
+
+export function formatShort(key: string): string {
+  return parseDateKey(key).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+export function formatRange(from: string, to: string): string {
+  return from === to ? formatLong(from) : `${formatShort(from)} – ${formatLong(to)}`
+}
+
+export function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? '' : 's'}`
+}
+
+// One line describing a day, used by lists and shared reports.
+export function describeDay(day: Day): string {
+  if (day.kind === 'wfh') return 'Work from home'
+  if (day.kind === 'leave') return leaveLabel(day.leaveType)
+  const mins = minutesBetween(day.in, day.out)
+  if (day.in && day.out) return `Office ${day.in}–${day.out}${mins == null ? '' : ` (${formatMinutes(mins)})`}`
+  if (day.in) return `Office from ${day.in}`
+  return 'Office'
+}
+
+export function monthReport(days: Days, year: number, monthIndex: number, today: string): string {
+  const prefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+  const summary = summarize(days, { today, prefix })
+  const lines = [
+    `Attendance · ${formatMonth(year, monthIndex)}`,
+    `Office ${summary.office} (${formatMinutes(summary.minutes)}) · Home ${summary.wfh} · Leave ${summary.leave}`,
+    `Weekdays logged ${summary.weekdaysMarked} of ${summary.weekdays}`,
+    '',
+  ]
+  const keys = Object.keys(days).filter((key) => key.startsWith(prefix)).sort()
+  if (keys.length === 0) lines.push('Nothing recorded.')
+  for (const key of keys) {
+    const day = days[key]
+    lines.push(`${formatShort(key)} · ${describeDay(day)}${day.note ? ` — ${day.note}` : ''}`)
+  }
+  return lines.join('\n')
+}
+
+// Everything someone might ask about a year: totals, each month, and every leave with its reason.
+export function yearReport(days: Days, year: number, today: string): string {
+  const prefix = String(year)
+  const summary = summarize(days, { today, prefix })
+  const counts = leaveCounts(days, prefix)
+  const lines = [
+    `Attendance · ${year}`,
+    `Office ${summary.office} (${formatMinutes(summary.minutes)}) · Home ${summary.wfh} · Leave ${summary.leave}`,
+    `Weekdays logged ${summary.weekdaysMarked} of ${summary.weekdays}`,
+    '',
+    'By month',
+  ]
+  for (let index = 0; index < 12; index += 1) {
+    const month = summarize(days, { today, prefix: `${prefix}-${String(index + 1).padStart(2, '0')}` })
+    if (month.office + month.wfh + month.leave === 0) continue
+    lines.push(
+      `${formatMonth(year, index)}: office ${month.office} (${formatMinutes(month.minutes)}) · home ${month.wfh} · leave ${month.leave}`,
+    )
+  }
+  const parts = leaveTypes.filter((item) => counts[item.id] > 0).map((item) => `${item.label} ${counts[item.id]}`)
+  if (counts.unmarked > 0) parts.push(`Leave ${counts.unmarked}`)
+  lines.push('', `Leave${parts.length ? ` · ${parts.join(' · ')}` : ''}`)
+  const spans = leaveSpans(days).filter((span) => span.from.startsWith(prefix) || span.to.startsWith(prefix))
+  if (spans.length === 0) lines.push('No leave taken.')
+  for (const span of spans) {
+    lines.push(
+      `${formatRange(span.from, span.to)} · ${leaveLabel(span.leaveType)} · ${plural(span.count, 'day')}${span.note ? ` — ${span.note}` : ''}`,
+    )
+  }
+  return lines.join('\n')
+}
+
+function csvCell(value: string): string {
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+}
+
+// Spreadsheet export: one row per recorded day, oldest first.
+export function toCsv(days: Days): string {
+  const rows = [['date', 'weekday', 'type', 'leave_type', 'in', 'out', 'minutes', 'note']]
+  for (const key of Object.keys(days).sort()) {
+    const day = days[key]
+    const mins = day.kind === 'office' ? minutesBetween(day.in, day.out) : null
+    rows.push([
+      key,
+      parseDateKey(key).toLocaleDateString('en-US', { weekday: 'short' }),
+      day.kind,
+      day.kind === 'leave' ? (day.leaveType ?? '') : '',
+      day.kind === 'office' ? (day.in ?? '') : '',
+      day.kind === 'office' ? (day.out ?? '') : '',
+      mins == null ? '' : String(mins),
+      day.note ?? '',
+    ])
+  }
+  return rows.map((row) => row.map(csvCell).join(',')).join('\n')
 }

@@ -1,15 +1,20 @@
+import { useRouter } from 'expo-router'
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native'
-import { eachDate, formatLong, leaveLabel, leaveSpans } from '@/logic'
+import { IconButton, text } from '@/components/ui'
+import { eachDate, formatRange, leaveLabel, leaveSpans, plural, type LeaveSpan } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 
-export function LeaveList() {
+export function LeaveList({ year }: { year: number }) {
+  const router = useRouter()
   const { days, setDay } = useDays()
-  const spans = leaveSpans(days).reverse()
+  const prefix = String(year)
+  const spans = leaveSpans(days)
+    .filter((span) => span.from.startsWith(prefix) || span.to.startsWith(prefix))
+    .reverse()
 
-  function remove(span: { from: string; to: string }) {
-    const count = eachDate(span.from, span.to).length
-    Alert.alert(`Remove ${count} ${count === 1 ? 'day' : 'days'} of leave?`, undefined, [
+  function remove(span: LeaveSpan) {
+    Alert.alert(`Remove ${plural(span.count, 'day')} of leave?`, formatRange(span.from, span.to), [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -23,44 +28,42 @@ export function LeaveList() {
     ])
   }
 
-  if (spans.length === 0) return <Text style={styles.meta}>No leave yet.</Text>
+  if (spans.length === 0) return <Text style={text.muted}>No leave in {year}.</Text>
 
   return (
     <View>
-      {spans.map((span) => {
-        const count = eachDate(span.from, span.to).length
-        const label = span.from === span.to ? formatLong(span.from) : `${formatLong(span.from)} – ${formatLong(span.to)}`
-        return (
-          <View key={span.from} style={styles.span}>
-            <View style={styles.spanText}>
-              <Text style={styles.spanTitle}>{label}</Text>
-              <Text style={styles.meta}>
-                {leaveLabel(span.leaveType)} · {count} {count === 1 ? 'day' : 'days'}
-                {span.note ? ` · ${span.note}` : ''}
-              </Text>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Remove leave ${label}`} onPress={() => remove(span)} style={styles.remove}>
-              <Text style={styles.removeText}>Remove</Text>
-            </Pressable>
+      {spans.map((span, index) => (
+        <Pressable
+          key={span.from}
+          accessibilityRole="button"
+          accessibilityLabel={`${formatRange(span.from, span.to)}, ${leaveLabel(span.leaveType)}, ${plural(span.count, 'day')}. Open first day.`}
+          onPress={() => router.push({ pathname: '/day', params: { date: span.from } })}
+          style={[styles.row, index > 0 && styles.rule]}
+        >
+          <View style={styles.body}>
+            <Text selectable style={styles.title}>
+              {formatRange(span.from, span.to)}
+            </Text>
+            <Text selectable style={text.muted}>
+              {leaveLabel(span.leaveType)} · {plural(span.count, 'day')}
+              {span.note ? ` · ${span.note}` : ''}
+            </Text>
           </View>
-        )
-      })}
+          <IconButton
+            icon="delete-outline"
+            label={`Remove leave ${formatRange(span.from, span.to)}`}
+            tint={color.faint}
+            onPress={() => remove(span)}
+          />
+        </Pressable>
+      ))}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  meta: { color: color.muted, fontSize: 14, lineHeight: 20 },
-  span: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: color.line,
-  },
-  spanText: { flex: 1, gap: 2 },
-  spanTitle: { color: color.text, fontSize: 16 },
-  remove: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  removeText: { color: color.danger, fontSize: 15, fontWeight: '600' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  rule: { borderTopWidth: 1, borderTopColor: color.line },
+  body: { flex: 1, gap: 2 },
+  title: { color: color.text, fontSize: 15, fontWeight: '600' },
 })

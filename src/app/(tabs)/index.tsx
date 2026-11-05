@@ -1,29 +1,37 @@
-import { Link } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text } from 'react-native'
 import { Screen } from '@/components/Screen'
-import { TodayClock } from '@/components/TodayClock'
+import { TodayCard } from '@/components/TodayCard'
+import { Icon } from '@/components/ui'
+import { plural, summarize, todayKey } from '@/logic'
+import { useDays } from '@/store'
 import { color } from '@/theme'
 
-export default function WorkScreen() {
+export default function TodayScreen() {
+  const router = useRouter()
+  const today = todayKey()
+  const { days } = useDays()
+  const missing = summarize(days, { today, prefix: today.slice(0, 7) }).unmarked.filter((date) => date !== today)
+
   return (
     <Screen>
-      <TodayClock />
-      <Link href="/apply-leave" asChild>
-        <Pressable accessibilityRole="button" style={styles.apply}>
-          <Text style={styles.applyText}>Apply leave</Text>
+      <TodayCard />
+      {missing.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.navigate({ pathname: '/calendar', params: { month: today.slice(0, 7) } })}
+          style={styles.nudge}
+        >
+          <Icon name="calendar-alert" size={18} tint={color.office} />
+          <Text style={styles.nudgeText}>{plural(missing.length, 'weekday')} this month not logged</Text>
+          <Icon name="chevron-right" size={18} tint={color.faint} />
         </Pressable>
-      </Link>
+      ) : null}
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  apply: {
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: color.office,
-  },
-  applyText: { color: color.ink, fontSize: 16, fontWeight: '700' },
+  nudge: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 8 },
+  nudgeText: { flex: 1, color: color.muted, fontSize: 15 },
 })
