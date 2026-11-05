@@ -17,7 +17,7 @@ export default function TabLayout() {
         headerStyle: { backgroundColor: color.bg },
         headerTintColor: color.text,
         headerShadowVisible: false,
-        headerTitleStyle: { fontSize: 22, fontWeight: '700' },
+        headerTitleStyle: { fontSize: 20, fontWeight: '700' },
         headerTitleAlign: 'left',
         headerRight: () => (
           <IconButton icon="cog-outline" label="Settings and backup" tint={color.muted} onPress={() => router.push('/settings')} />

@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { AppState, StyleSheet, Text, View } from 'react-native'
-import { Button, Icon, text } from '@/components/ui'
-import { formatMinutes, leaveLabel, minutesBetween, minutesSince, parseDateKey, timeNow, todayKey } from '@/logic'
+import { Button, Card, Icon, text } from '@/components/ui'
+import { formatMinutes, leaveLabel, minutesBetween, minutesSince, timeNow, todayKey } from '@/logic'
 import { useDays } from '@/store'
-import { color, kindMeta } from '@/theme'
+import { color, kindMeta, type IconName } from '@/theme'
 
 export function TodayCard() {
   const router = useRouter()
@@ -28,64 +28,80 @@ export function TodayCard() {
 
   const note = day?.note ? { note: day.note } : {}
   const clockIn = () => setDay(today, { kind: 'office', in: timeNow(), ...note })
-  const edit = () => router.push({ pathname: '/day', params: { date: today } })
   const elapsed = open && day?.in ? minutesSince(day.in, now) : null
   const done = day?.kind === 'office' ? minutesBetween(day.in, day.out) : null
   const shown = elapsed ?? done
 
+  // One status line for every state, so the card reads the same whatever the day is.
+  const status: { icon: IconName; tint: string; title: string; sub: string } = !day
+    ? { icon: 'calendar-alert', tint: color.muted, title: 'Not logged yet', sub: 'Clock in, or mark the day' }
+    : day.kind === 'wfh'
+      ? { icon: kindMeta.wfh.icon, tint: kindMeta.wfh.tint, title: 'Working from home', sub: day.note ?? 'Counts as a worked day' }
+      : day.kind === 'leave'
+        ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: leaveLabel(day.leaveType), sub: day.note ?? 'Day off' }
+        : {
+            icon: kindMeta.office.icon,
+            tint: kindMeta.office.tint,
+            title: open ? 'Clocked in' : 'In office',
+            sub: open && day.in ? `Since ${day.in}` : day.in && day.out ? `${day.in} – ${day.out}` : 'No clock-in yet',
+          }
+
   return (
-    <View style={styles.wrap}>
-      <Text style={text.muted}>
-        {parseDateKey(today).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-      </Text>
-
-      {day?.kind === 'wfh' || day?.kind === 'leave' ? (
-        <View style={styles.status}>
-          <Icon name={kindMeta[day.kind].icon} size={32} tint={kindMeta[day.kind].tint} />
-          <Text style={styles.statusTitle}>{day.kind === 'wfh' ? 'Working from home' : leaveLabel(day.leaveType)}</Text>
+    <Card>
+      <View style={styles.status}>
+        <View style={[styles.badge, { backgroundColor: `${status.tint}22` }]}>
+          <Icon name={status.icon} size={22} tint={status.tint} />
         </View>
-      ) : (
-        <View>
-          <Text selectable style={[styles.hours, shown == null && styles.idle]}>
-            {shown == null ? '0h 00m' : formatMinutes(shown)}
-          </Text>
-          <Text style={text.muted}>
-            {open && day?.in ? `Since ${day.in}` : done != null && day?.in && day.out ? `${day.in} – ${day.out}` : 'Not clocked in'}
+        <View style={styles.statusText}>
+          <Text style={styles.title}>{status.title}</Text>
+          <Text numberOfLines={2} style={text.muted}>
+            {status.sub}
           </Text>
         </View>
-      )}
-
-      <View style={styles.actions}>
-        {!day ? (
-          <>
-            <Button label="Clock in" icon="login" variant="primary" onPress={clockIn} />
-            <View style={styles.row}>
-              <Button label="From home" grow onPress={() => setDay(today, { kind: 'wfh' })} />
-              <Button label="Leave" grow onPress={() => router.push({ pathname: '/apply-leave', params: { from: today } })} />
-            </View>
-          </>
-        ) : open ? (
+        {day ? (
           <Button
-            label="Clock out"
-            icon="logout"
-            variant="primary"
-            onPress={() => day?.in && setDay(today, { kind: 'office', in: day.in, out: timeNow(), ...note })}
+            label="Edit"
+            compact
+            onPress={() => router.push({ pathname: '/day', params: { date: today } })}
+            accessibilityLabel="Edit today"
           />
-        ) : day.kind === 'office' && !day.in ? (
-          <Button label="Clock in" icon="login" variant="primary" onPress={clockIn} />
         ) : null}
-        {day ? <Button label="Edit today" variant="ghost" onPress={edit} /> : null}
       </View>
-    </View>
+
+      {shown != null ? (
+        <Text selectable style={styles.hours}>
+          {formatMinutes(shown)}
+        </Text>
+      ) : null}
+
+      {!day ? (
+        <View style={styles.actions}>
+          <Button label="Clock in" icon="login" variant="primary" onPress={clockIn} />
+          <View style={styles.row}>
+            <Button label="From home" grow onPress={() => setDay(today, { kind: 'wfh' })} />
+            <Button label="Leave" grow onPress={() => router.push({ pathname: '/apply-leave', params: { from: today } })} />
+          </View>
+        </View>
+      ) : open ? (
+        <Button
+          label="Clock out"
+          icon="logout"
+          variant="primary"
+          onPress={() => day?.in && setDay(today, { kind: 'office', in: day.in, out: timeNow(), ...note })}
+        />
+      ) : day.kind === 'office' && !day.in ? (
+        <Button label="Clock in" icon="login" variant="primary" onPress={clockIn} />
+      ) : null}
+    </Card>
   )
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 20, paddingTop: 8 },
-  hours: { color: color.text, fontSize: 64, fontWeight: '700', letterSpacing: -2, fontVariant: ['tabular-nums'] },
-  idle: { color: color.faint },
-  status: { gap: 10 },
-  statusTitle: { color: color.text, fontSize: 32, fontWeight: '700', letterSpacing: -0.5 },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  badge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  statusText: { flex: 1, gap: 2 },
+  title: { color: color.text, fontSize: 18, fontWeight: '700' },
+  hours: { color: color.text, fontSize: 48, fontWeight: '700', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   actions: { gap: 8 },
   row: { flexDirection: 'row', gap: 8 },
 })

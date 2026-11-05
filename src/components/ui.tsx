@@ -9,6 +9,10 @@ export function Icon({ name, size = 20, tint = color.text }: { name: IconName; s
   return <MaterialDesignIcons name={name} size={size} color={tint} />
 }
 
+export function Card({ children }: { children: ReactNode }) {
+  return <View style={styles.card}>{children}</View>
+}
+
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 export function Button({
@@ -194,6 +198,15 @@ export const text = StyleSheet.create({
 })
 
 const styles = StyleSheet.create({
+  card: {
+    backgroundColor: color.card,
+    borderRadius: 20,
+    borderCurve: 'continuous',
+    borderWidth: 1,
+    borderColor: color.line,
+    padding: 16,
+    gap: 16,
+  },
   button: {
     minHeight: 52,
     borderRadius: radius.md,
