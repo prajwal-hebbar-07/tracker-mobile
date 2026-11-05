@@ -4,7 +4,7 @@ import { Pressable, Share, StyleSheet, Text, View } from 'react-native'
 import { LeaveList } from '@/components/LeaveList'
 import { Screen } from '@/components/Screen'
 import { Button, PeriodNav, Section, text } from '@/components/ui'
-import { formatMinutes, leaveCounts, leaveTypes, summarize, todayKey, yearReport } from '@/logic'
+import { addDays, formatMinutes, leaveCounts, leaveTypes, summarize, todayKey, yearReport } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 
@@ -83,10 +83,13 @@ export default function ReportScreen() {
         )}
       </Section>
 
-      <Section
-        title="Leave"
-        action={{ label: 'Apply', icon: 'plus', onPress: () => router.push({ pathname: '/apply-leave', params: { from: today } }) }}
-      >
+      <Section title="Leave">
+        <Button
+          label="Plan leave in advance"
+          icon="calendar-range"
+          tint={color.leave}
+          onPress={() => router.push({ pathname: '/apply-leave', params: { from: addDays(today, 1) } })}
+        />
         {leaveLine ? <Text style={text.muted}>{leaveLine}</Text> : null}
         <LeaveList year={year} />
       </Section>

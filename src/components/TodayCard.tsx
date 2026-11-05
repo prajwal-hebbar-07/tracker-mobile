@@ -1,16 +1,14 @@
-import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { AppState, StyleSheet, Text, View } from 'react-native'
 import { useDialog } from '@/components/Dialog'
 import { TimeField } from '@/components/TimeField'
-import { Button, Card, Icon, text } from '@/components/ui'
-import { formatMinutes, leaveLabel, minutesBetween, minutesSince, timeNow, todayKey } from '@/logic'
+import { Button, Card, Chip, Icon, text } from '@/components/ui'
+import { formatMinutes, leaveTypes, minutesBetween, minutesSince, timeNow, todayKey } from '@/logic'
 import { useDays } from '@/store'
-import { color, kindMeta, type IconName } from '@/theme'
+import { color, kindMeta, leaveIcon, type IconName } from '@/theme'
 
 // Clock in, clock out and work from home exist only here, for today. Other days can only take leave.
 export function TodayCard() {
-  const router = useRouter()
   const today = todayKey()
   const { days, setDay } = useDays()
   const day = days[today]
@@ -62,7 +60,7 @@ export function TodayCard() {
     : day.kind === 'wfh'
       ? { icon: kindMeta.wfh.icon, tint: kindMeta.wfh.tint, title: 'Working from home', sub: 'Counts as a worked day' }
       : day.kind === 'leave'
-        ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: leaveLabel(day.leaveType), sub: day.note ?? 'On leave today' }
+        ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: 'On leave today', sub: day.note ?? 'Tap the type that fits' }
         : {
             icon: kindMeta.office.icon,
             tint: kindMeta.office.tint,
@@ -98,6 +96,21 @@ export function TodayCard() {
         </View>
       ) : null}
 
+      {day?.kind === 'leave' ? (
+        <View style={styles.chips}>
+          {leaveTypes.map((item) => (
+            <Chip
+              key={item.id}
+              label={item.label}
+              icon={leaveIcon[item.id]}
+              tint={color.leave}
+              selected={(day.leaveType ?? 'personal') === item.id}
+              onPress={() => setDay(today, { ...day, leaveType: item.id })}
+            />
+          ))}
+        </View>
+      ) : null}
+
       {!day ? (
         <View style={styles.actions}>
           <Button label="Clock in" icon="login" variant="primary" onPress={() => setDay(today, { kind: 'office', in: timeNow() })} />
@@ -108,7 +121,7 @@ export function TodayCard() {
               icon={kindMeta.leave.icon}
               tint={kindMeta.leave.tint}
               grow
-              onPress={() => router.push({ pathname: '/apply-leave', params: { from: today } })}
+              onPress={() => setDay(today, { kind: 'leave', leaveType: 'personal' })}
             />
           </View>
         </View>
@@ -126,6 +139,7 @@ const styles = StyleSheet.create({
   status: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   badge: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   statusText: { flex: 1, gap: 2 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   title: { color: color.text, fontSize: 18, fontWeight: '700' },
   hours: { color: color.text, fontSize: 48, fontWeight: '700', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   actions: { gap: 8 },
