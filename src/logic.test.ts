@@ -2,8 +2,11 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   cleanDays,
+  eachDate,
   formatMinutes,
+  leaveSpans,
   minutesBetween,
+  minutesSince,
   monthCells,
   normalizeTime,
   summarize,
@@ -70,6 +73,35 @@ test('a month summary counts office, home, leave, and only real hours', () => {
   assert.deepEqual(summary.leaves, ['2026-11-04'])
   assert.equal(summary.months[10], 780)
   assert.equal(summary.months[9], 0)
+})
+
+test('a leave span is the days you select, including the ends', () => {
+  assert.deepEqual(eachDate('2026-11-02', '2026-11-06'), [
+    '2026-11-02',
+    '2026-11-03',
+    '2026-11-04',
+    '2026-11-05',
+    '2026-11-06',
+  ])
+  assert.deepEqual(eachDate('2026-11-06', '2026-11-05'), ['2026-11-05', '2026-11-06'])
+  assert.deepEqual(
+    leaveSpans({
+      '2026-11-02': { kind: 'leave' },
+      '2026-11-03': { kind: 'leave' },
+      '2026-11-04': { kind: 'office', in: '09:00', out: '17:00' },
+      '2026-11-10': { kind: 'leave' },
+    }),
+    [
+      { from: '2026-11-02', to: '2026-11-03' },
+      { from: '2026-11-10', to: '2026-11-10' },
+    ],
+  )
+})
+
+test('open clock time counts minutes until now', () => {
+  const now = new Date(2026, 10, 5, 12, 30, 40)
+  assert.equal(minutesSince('09:00', now), 210)
+  assert.equal(minutesSince('13:00', now), null)
 })
 
 test('heatmap tones follow the kind and how long the office day was', () => {

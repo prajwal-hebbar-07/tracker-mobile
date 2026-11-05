@@ -57,9 +57,9 @@ function Gate() {
         tabBarInactiveTintColor: color.muted,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Today' }} />
-      <Tabs.Screen name="log" options={{ title: 'Log' }} />
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
+      <Tabs.Screen name="leaves" options={{ title: 'Leaves' }} />
+      <Tabs.Screen name="log" options={{ title: 'Logs' }} />
     </Tabs>
   )
 }

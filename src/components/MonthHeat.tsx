@@ -9,6 +9,7 @@ export function MonthHeat({
   month,
   days,
   selected,
+  span,
   titled = false,
   onPick,
 }: {
@@ -16,11 +17,14 @@ export function MonthHeat({
   month: number
   days: Days
   selected?: string
+  span?: { from: string; to: string }
   titled?: boolean
   onPick?: (date: string) => void
 }) {
   const today = todayKey()
   const cells = monthCells(year, month)
+  const spanStart = span ? (span.from <= span.to ? span.from : span.to) : ''
+  const spanEnd = span ? (span.from <= span.to ? span.to : span.from) : ''
   return (
     <View style={styles.wrap}>
       {titled ? <Text style={styles.title}>{formatMonth(year, month)}</Text> : null}
@@ -36,6 +40,7 @@ export function MonthHeat({
           if (!key) return <View key={`empty-${index}`} style={styles.cell} />
           const name = tone(days[key] ?? null)
           const selectedDay = key === selected
+          const inSpan = Boolean(spanStart && key >= spanStart && key <= spanEnd)
           return (
             <Pressable
               key={key}
@@ -48,6 +53,7 @@ export function MonthHeat({
                 style={[
                   styles.swatch,
                   { backgroundColor: toneColor[name] },
+                  inSpan && styles.span,
                   selectedDay && styles.selected,
                   key === today && !selectedDay && styles.today,
                 ]}
@@ -70,6 +76,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '14.28%', aspectRatio: 1, padding: 2 },
   swatch: { flex: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  span: { borderWidth: 2, borderColor: color.text },
   selected: { borderWidth: 2, borderColor: color.text },
   today: { borderWidth: 1, borderColor: color.office },
   num: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },

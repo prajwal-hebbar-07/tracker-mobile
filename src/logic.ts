@@ -93,6 +93,39 @@ export function normalizeTime(value: string): string | null {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 }
 
+export function eachDate(from: string, to: string): string[] {
+  const start = from <= to ? from : to
+  const end = from <= to ? to : from
+  const dates: string[] = []
+  for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) dates.push(cursor)
+  return dates
+}
+
+export function leaveSpans(days: Days): { from: string; to: string }[] {
+  const dates = Object.entries(days)
+    .filter(([, day]) => day.kind === 'leave')
+    .map(([date]) => date)
+    .sort()
+  const spans: { from: string; to: string }[] = []
+  for (const date of dates) {
+    const last = spans[spans.length - 1]
+    if (last && addDays(last.to, 1) === date) last.to = date
+    else spans.push({ from: date, to: date })
+  }
+  return spans
+}
+
+export function minutesSince(inn: string, now: Date): number | null {
+  const start = normalizeTime(inn)
+  if (!start) return null
+  const [hours, minutes] = start.split(':').map(Number)
+  const clock = new Date(now)
+  clock.setHours(hours, minutes, 0, 0)
+  const delta = Math.floor((now.getTime() - clock.getTime()) / 60000)
+  if (delta < 0) return null
+  return delta
+}
+
 export function minutesBetween(inn?: string, out?: string): number | null {
   const start = inn ? normalizeTime(inn) : null
   const end = out ? normalizeTime(out) : null

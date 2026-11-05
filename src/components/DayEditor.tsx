@@ -13,8 +13,7 @@ import { color } from '@/theme'
 
 const kinds: { kind: Kind; label: string }[] = [
   { kind: 'office', label: 'Office' },
-  { kind: 'wfh', label: 'WFH' },
-  { kind: 'leave', label: 'Leave' },
+  { kind: 'wfh', label: 'From home' },
 ]
 
 export function DayEditor({
@@ -85,9 +84,11 @@ export function DayEditor({
 
       {!day ? <Text style={styles.copy}>Nothing recorded for this day yet.</Text> : null}
       {day?.kind === 'wfh' ? (
-        <Text style={styles.copy}>Work from home. It counts as a worked day, with no clock times.</Text>
+        <Text style={styles.copy}>From home. This day counts as worked, with no clock times.</Text>
       ) : null}
-      {day?.kind === 'leave' ? <Text style={styles.copy}>Leave. It counts toward leave taken.</Text> : null}
+      {day?.kind === 'leave' ? (
+        <Text style={styles.copy}>This day is leave. Add or remove leave from the Leaves tab.</Text>
+      ) : null}
 
       {day?.kind === 'office' ? (
         <View style={styles.office}>
