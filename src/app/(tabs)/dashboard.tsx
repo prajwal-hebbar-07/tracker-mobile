@@ -61,7 +61,7 @@ export default function DashboardScreen() {
           year={year}
           month={month}
           days={days}
-          onPick={(date) => router.push({ pathname: '/log', params: { date } })}
+          onPick={(date) => router.push({ pathname: '/day', params: { date } })}
         />
       ))}
 

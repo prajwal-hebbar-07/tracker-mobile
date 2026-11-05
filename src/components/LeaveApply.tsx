@@ -1,11 +1,13 @@
+import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { MonthHeat } from '@/components/MonthHeat'
-import { eachDate, formatLong, formatMonth, leaveLabel, leaveSpans, leaveTypes, todayKey, type Day, type LeaveType } from '@/logic'
+import { eachDate, formatLong, formatMonth, leaveLabel, leaveTypes, todayKey, type Day, type LeaveType } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 
 export function LeaveApply() {
+  const router = useRouter()
   const today = todayKey()
   const start = new Date()
   const [cursor, setCursor] = useState({ year: start.getFullYear(), month: start.getMonth() })
@@ -17,7 +19,6 @@ export function LeaveApply() {
   const [typeOpen, setTypeOpen] = useState(false)
   const { days, setDay } = useDays()
   const dates = eachDate(from, to)
-  const spans = leaveSpans(days).reverse()
 
   function shift(delta: number) {
     const next = new Date(cursor.year, cursor.month + delta, 1)
@@ -54,33 +55,15 @@ export function LeaveApply() {
               if (trimmed) next.note = trimmed
               setDay(date, next)
             }
-            setNote('')
-            setPickingEnd(false)
+            router.back()
           },
         },
       ],
     )
   }
 
-  function remove(span: { from: string; to: string }) {
-    const count = eachDate(span.from, span.to).length
-    Alert.alert(`Remove ${count} ${count === 1 ? 'day' : 'days'} of leave?`, undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          for (const date of eachDate(span.from, span.to)) {
-            if (days[date]?.kind === 'leave') setDay(date, null)
-          }
-        },
-      },
-    ])
-  }
-
   return (
     <View style={styles.wrap}>
-      <Text style={styles.section}>Leave</Text>
       <Text style={styles.lead}>Select the first day, then the last day.</Text>
       <View style={styles.bar}>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => shift(-1)} style={styles.arrow}>
@@ -137,27 +120,6 @@ export function LeaveApply() {
       <Pressable accessibilityRole="button" onPress={apply} style={styles.apply}>
         <Text style={styles.applyText}>Apply leave</Text>
       </Pressable>
-
-      <Text style={styles.section}>Leave taken</Text>
-      {spans.length === 0 ? <Text style={styles.meta}>No leave yet.</Text> : null}
-      {spans.map((span) => {
-        const count = eachDate(span.from, span.to).length
-        const label = span.from === span.to ? formatLong(span.from) : `${formatLong(span.from)} – ${formatLong(span.to)}`
-        return (
-          <View key={span.from} style={styles.span}>
-            <View style={styles.spanText}>
-              <Text style={styles.spanTitle}>{label}</Text>
-              <Text style={styles.meta}>
-                {leaveLabel(span.leaveType)} · {count} {count === 1 ? 'day' : 'days'}
-                {span.note ? ` · ${span.note}` : ''}
-              </Text>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Remove leave ${label}`} onPress={() => remove(span)} style={styles.remove}>
-              <Text style={styles.removeText}>Remove</Text>
-            </Pressable>
-          </View>
-        )
-      })}
     </View>
   )
 }
@@ -215,18 +177,4 @@ const styles = StyleSheet.create({
     backgroundColor: color.office,
   },
   applyText: { color: color.ink, fontSize: 16, fontWeight: '700' },
-  section: { color: color.text, fontSize: 18, fontWeight: '600' },
-  meta: { color: color.muted, fontSize: 14, lineHeight: 20 },
-  span: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: color.line,
-  },
-  spanText: { flex: 1, gap: 2 },
-  spanTitle: { color: color.text, fontSize: 16 },
-  remove: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  removeText: { color: color.danger, fontSize: 15, fontWeight: '600' },
 })

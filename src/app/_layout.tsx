@@ -1,4 +1,5 @@
-import { DarkTheme, Tabs, ThemeProvider } from 'expo-router'
+import { DarkTheme, ThemeProvider } from 'expo-router'
+import { Stack } from 'expo-router/stack'
 import { StatusBar } from 'expo-status-bar'
 import { StyleSheet, Text, View } from 'react-native'
 import { DaysProvider, useDays } from '@/store'
@@ -46,24 +47,28 @@ function Gate() {
     )
   }
   return (
-    <Tabs
+    <Stack
       screenOptions={{
         headerStyle: { backgroundColor: color.bg },
         headerTintColor: color.text,
         headerShadowVisible: false,
         headerTitleStyle: { fontWeight: '600' },
-        tabBarStyle: { backgroundColor: color.bg, borderTopColor: color.line },
-        tabBarActiveTintColor: color.office,
-        tabBarInactiveTintColor: color.muted,
-        tabBarIcon: () => null,
-        tabBarIconStyle: { width: 0, height: 0 },
-        tabBarLabelStyle: { fontSize: 13, fontWeight: '600' },
+        contentStyle: { backgroundColor: color.bg },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Work' }} />
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-      <Tabs.Screen name="log" options={{ title: 'Logs' }} />
-    </Tabs>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="apply-leave"
+        options={{
+          presentation: 'formSheet',
+          sheetGrabberVisible: true,
+          sheetAllowedDetents: [1],
+          title: 'Apply leave',
+        }}
+      />
+      <Stack.Screen name="leaves" options={{ title: 'Leaves' }} />
+      <Stack.Screen name="day" options={{ title: 'Day' }} />
+    </Stack>
   )
 }
 
