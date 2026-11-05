@@ -1,10 +1,24 @@
 export type Kind = 'office' | 'wfh' | 'leave'
 
+export type LeaveType = 'personal' | 'sick' | 'early' | 'lop'
+
+export const leaveTypes: { id: LeaveType; label: string }[] = [
+  { id: 'personal', label: 'Personal leave' },
+  { id: 'early', label: 'Early leave' },
+  { id: 'sick', label: 'Sick leave' },
+  { id: 'lop', label: 'Loss of pay' },
+]
+
+export function leaveLabel(type?: LeaveType): string {
+  return leaveTypes.find((item) => item.id === type)?.label ?? 'Leave'
+}
+
 export type Day = {
   kind: Kind
   in?: string
   out?: string
   note?: string
+  leaveType?: LeaveType
 }
 
 export type Days = Record<string, Day>
@@ -101,16 +115,23 @@ export function eachDate(from: string, to: string): string[] {
   return dates
 }
 
-export function leaveSpans(days: Days): { from: string; to: string }[] {
+export function leaveSpans(days: Days): { from: string; to: string; leaveType?: LeaveType; note?: string }[] {
   const dates = Object.entries(days)
     .filter(([, day]) => day.kind === 'leave')
     .map(([date]) => date)
     .sort()
-  const spans: { from: string; to: string }[] = []
+  const spans: { from: string; to: string; leaveType?: LeaveType; note?: string }[] = []
   for (const date of dates) {
+    const day = days[date]
+    if (!day) continue
     const last = spans[spans.length - 1]
-    if (last && addDays(last.to, 1) === date) last.to = date
-    else spans.push({ from: date, to: date })
+    const same =
+      last &&
+      addDays(last.to, 1) === date &&
+      last.leaveType === day.leaveType &&
+      (last.note ?? '') === (day.note ?? '')
+    if (last && same) last.to = date
+    else spans.push({ from: date, to: date, ...(day.leaveType ? { leaveType: day.leaveType } : {}), ...(day.note ? { note: day.note } : {}) })
   }
   return spans
 }
@@ -164,6 +185,9 @@ export function cleanDay(value: unknown): Day | null {
   if (typeof record.note === 'string') {
     const note = record.note.trim().slice(0, 280)
     if (note) day.note = note
+  }
+  if (day.kind === 'leave' && leaveTypes.some((item) => item.id === record.leaveType)) {
+    day.leaveType = record.leaveType as LeaveType
   }
   return day
 }

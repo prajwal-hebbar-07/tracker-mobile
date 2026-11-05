@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { MonthHeat } from '@/components/MonthHeat'
 import { Screen } from '@/components/Screen'
-import { eachDate, formatLong, formatMonth, leaveSpans, todayKey, type Day } from '@/logic'
+import { eachDate, formatLong, formatMonth, leaveLabel, leaveSpans, leaveTypes, todayKey, type Day, type LeaveType } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 
@@ -14,6 +14,8 @@ export default function LeavesScreen() {
   const [to, setTo] = useState(today)
   const [pickingEnd, setPickingEnd] = useState(false)
   const [note, setNote] = useState('')
+  const [leaveType, setLeaveType] = useState<LeaveType>('personal')
+  const [typeOpen, setTypeOpen] = useState(false)
   const { days, setDay } = useDays()
   const dates = eachDate(from, to)
   const spans = leaveSpans(days).reverse()
@@ -49,7 +51,7 @@ export default function LeavesScreen() {
           onPress: () => {
             const trimmed = note.trim().slice(0, 280)
             for (const date of dates) {
-              const next: Day = { kind: 'leave' }
+              const next: Day = { kind: 'leave', leaveType }
               if (trimmed) next.note = trimmed
               setDay(date, next)
             }
@@ -94,12 +96,42 @@ export default function LeavesScreen() {
         {dates.length} {dates.length === 1 ? 'day' : 'days'}
         {dates.length > 1 ? ` · ${formatLong(dates[0])} – ${formatLong(dates[dates.length - 1])}` : ` · ${formatLong(dates[0])}`}
       </Text>
+      <Text style={styles.fieldLabel}>Leave type</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: typeOpen }}
+        onPress={() => setTypeOpen((open) => !open)}
+        style={styles.dropdown}
+      >
+        <Text style={styles.dropdownText}>{leaveLabel(leaveType)}</Text>
+        <Text style={styles.dropdownMark}>{typeOpen ? '▴' : '▾'}</Text>
+      </Pressable>
+      {typeOpen
+        ? leaveTypes.map((item) => {
+            const selected = item.id === leaveType
+            return (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => {
+                  setLeaveType(item.id)
+                  setTypeOpen(false)
+                }}
+                style={[styles.option, selected && styles.optionOn]}
+              >
+                <Text style={[styles.optionText, selected && styles.optionTextOn]}>{item.label}</Text>
+              </Pressable>
+            )
+          })
+        : null}
       <TextInput
         value={note}
         onChangeText={setNote}
-        placeholder="Note for this leave"
+        placeholder="Why you're taking this leave"
         placeholderTextColor={color.faint}
         maxLength={280}
+        multiline
         style={styles.note}
       />
       <Pressable accessibilityRole="button" onPress={apply} style={styles.apply}>
@@ -116,8 +148,8 @@ export default function LeavesScreen() {
             <View style={styles.spanText}>
               <Text style={styles.spanTitle}>{label}</Text>
               <Text style={styles.meta}>
-                {count} {count === 1 ? 'day' : 'days'}
-                {days[span.from]?.note ? ` · ${days[span.from].note}` : ''}
+                {leaveLabel(span.leaveType)} · {count} {count === 1 ? 'day' : 'days'}
+                {span.note ? ` · ${span.note}` : ''}
               </Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel={`Remove leave ${label}`} onPress={() => remove(span)} style={styles.remove}>
@@ -137,15 +169,42 @@ const styles = StyleSheet.create({
   arrow: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   arrowText: { color: color.office, fontSize: 28, lineHeight: 32 },
   count: { color: color.text, fontSize: 18, fontWeight: '600' },
-  note: {
+  fieldLabel: { color: color.muted, fontSize: 13, fontWeight: '700' },
+  dropdown: {
+    minHeight: 52,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    backgroundColor: color.card,
+    borderWidth: 1,
+    borderColor: color.line,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownText: { color: color.text, fontSize: 16, fontWeight: '600' },
+  dropdownMark: { color: color.office, fontSize: 14 },
+  option: {
     minHeight: 48,
     borderRadius: 12,
     paddingHorizontal: 14,
+    justifyContent: 'center',
+    backgroundColor: color.card,
+    borderWidth: 1,
+    borderColor: color.line,
+  },
+  optionOn: { backgroundColor: color.office, borderColor: color.office },
+  optionText: { color: color.text, fontSize: 16 },
+  optionTextOn: { color: color.ink, fontWeight: '700' },
+  note: {
+    minHeight: 88,
+    borderRadius: 12,
+    padding: 14,
     color: color.text,
     backgroundColor: color.card,
     borderWidth: 1,
     borderColor: color.line,
     fontSize: 16,
+    textAlignVertical: 'top',
   },
   apply: {
     minHeight: 52,

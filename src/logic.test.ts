@@ -89,13 +89,16 @@ test('a leave span is the days you select, including the ends', () => {
       '2026-11-02': { kind: 'leave' },
       '2026-11-03': { kind: 'leave' },
       '2026-11-04': { kind: 'office', in: '09:00', out: '17:00' },
-      '2026-11-10': { kind: 'leave' },
+      '2026-11-10': { kind: 'leave', leaveType: 'sick', note: 'fever' },
+      '2026-11-11': { kind: 'leave', leaveType: 'personal' },
     }),
     [
       { from: '2026-11-02', to: '2026-11-03' },
-      { from: '2026-11-10', to: '2026-11-10' },
+      { from: '2026-11-10', to: '2026-11-10', leaveType: 'sick', note: 'fever' },
+      { from: '2026-11-11', to: '2026-11-11', leaveType: 'personal' },
     ],
   )
+  assert.equal(cleanDays({ '2026-11-12': { kind: 'leave', leaveType: 'nope' } })?.['2026-11-12'].leaveType, undefined)
 })
 
 test('open clock time counts minutes until now', () => {
