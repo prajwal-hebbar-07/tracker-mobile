@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { MonthHeat } from '@/components/MonthHeat'
-import { Screen } from '@/components/Screen'
 import { eachDate, formatLong, formatMonth, leaveLabel, leaveSpans, leaveTypes, todayKey, type Day, type LeaveType } from '@/logic'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 
-export default function LeavesScreen() {
+export function LeaveApply() {
   const today = todayKey()
   const start = new Date()
   const [cursor, setCursor] = useState({ year: start.getFullYear(), month: start.getMonth() })
@@ -80,7 +79,8 @@ export default function LeavesScreen() {
   }
 
   return (
-    <Screen>
+    <View style={styles.wrap}>
+      <Text style={styles.section}>Leave</Text>
       <Text style={styles.lead}>Select the first day, then the last day.</Text>
       <View style={styles.bar}>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => shift(-1)} style={styles.arrow}>
@@ -158,11 +158,12 @@ export default function LeavesScreen() {
           </View>
         )
       })}
-    </Screen>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
+  wrap: { gap: 16 },
   lead: { color: color.muted, fontSize: 15, lineHeight: 21 },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   month: { color: color.text, fontSize: 18, fontWeight: '600' },
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.office,
   },
   applyText: { color: color.ink, fontSize: 16, fontWeight: '700' },
-  section: { color: color.text, fontSize: 18, fontWeight: '600', marginTop: 8 },
+  section: { color: color.text, fontSize: 18, fontWeight: '600' },
   meta: { color: color.muted, fontSize: 14, lineHeight: 20 },
   span: {
     flexDirection: 'row',

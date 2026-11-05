@@ -87,7 +87,7 @@ export function DayEditor({
         <Text style={styles.copy}>From home. This day counts as worked, with no clock times.</Text>
       ) : null}
       {day?.kind === 'leave' ? (
-        <Text style={styles.copy}>This day is leave. Add or remove leave from the Leaves tab.</Text>
+        <Text style={styles.copy}>This day is leave. Add or remove it from Work.</Text>
       ) : null}
 
       {day?.kind === 'office' ? (

@@ -55,11 +55,13 @@ function Gate() {
         tabBarStyle: { backgroundColor: color.bg, borderTopColor: color.line },
         tabBarActiveTintColor: color.office,
         tabBarInactiveTintColor: color.muted,
+        tabBarIcon: () => null,
+        tabBarIconStyle: { width: 0, height: 0 },
+        tabBarLabelStyle: { fontSize: 13, fontWeight: '600' },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Today' }} />
+      <Tabs.Screen name="index" options={{ title: 'Work' }} />
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-      <Tabs.Screen name="leaves" options={{ title: 'Leaves' }} />
       <Tabs.Screen name="log" options={{ title: 'Logs' }} />
     </Tabs>
   )
