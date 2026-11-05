@@ -4,6 +4,7 @@ import {
   cleanDays,
   eachDate,
   formatMinutes,
+  leaveCounts,
   leaveSpans,
   minutesBetween,
   minutesSince,
@@ -73,6 +74,21 @@ test('a month summary counts office, home, leave, and only real hours', () => {
   assert.deepEqual(summary.leaves, ['2026-11-04'])
   assert.equal(summary.months[10], 780)
   assert.equal(summary.months[9], 0)
+})
+
+test('leave counts follow type inside the chosen year', () => {
+  const counts = leaveCounts(
+    {
+      '2026-01-02': { kind: 'leave', leaveType: 'sick' },
+      '2025-12-31': { kind: 'leave', leaveType: 'sick' },
+      '2026-03-01': { kind: 'leave' },
+      '2026-03-02': { kind: 'wfh' },
+    },
+    '2026',
+  )
+  assert.equal(counts.sick, 1)
+  assert.equal(counts.unmarked, 1)
+  assert.equal(counts.personal, 0)
 })
 
 test('a leave span is the days you select, including the ends', () => {

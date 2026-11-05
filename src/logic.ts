@@ -13,6 +13,17 @@ export function leaveLabel(type?: LeaveType): string {
   return leaveTypes.find((item) => item.id === type)?.label ?? 'Leave'
 }
 
+export function leaveCounts(days: Days, prefix?: string): Record<LeaveType | 'unmarked', number> {
+  const counts = { personal: 0, early: 0, sick: 0, lop: 0, unmarked: 0 }
+  for (const [date, day] of Object.entries(days)) {
+    if (prefix && !date.startsWith(prefix)) continue
+    if (day.kind !== 'leave') continue
+    if (day.leaveType) counts[day.leaveType] += 1
+    else counts.unmarked += 1
+  }
+  return counts
+}
+
 export type Day = {
   kind: Kind
   in?: string
