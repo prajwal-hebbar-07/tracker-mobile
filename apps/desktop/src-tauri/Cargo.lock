@@ -1723,6 +1723,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 name = "logbook-widget"
 version = "1.0.0"
 dependencies = [
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

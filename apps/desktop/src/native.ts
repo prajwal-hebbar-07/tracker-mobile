@@ -1,3 +1,4 @@
+import type { Day } from '@logbook/core'
 import { invoke } from '@tauri-apps/api/core'
 
 // Inside the Tauri app these go to the Rust commands in src-tauri/src/main.rs.
@@ -13,9 +14,21 @@ export function loadLog(): Promise<string | null> {
   return invoke<string | null>('load_days')
 }
 
+// Replaces the whole log (restore).
 export async function saveLog(json: string): Promise<void> {
   if (!inApp) return localStorage.setItem(browserKey, json)
   await invoke('save_days', { json })
+}
+
+// Changes one day against the file as it is now and returns the log as written, so edits from the CLI survive.
+export async function updateDay(date: string, day: Day | null): Promise<string> {
+  if (inApp) return invoke<string>('update_day', { date, day })
+  const log = JSON.parse(localStorage.getItem(browserKey) ?? '{}') as Record<string, Day>
+  if (day) log[date] = day
+  else delete log[date]
+  const json = JSON.stringify(log)
+  localStorage.setItem(browserKey, json)
+  return json
 }
 
 // Asks where to save. false means the save panel was cancelled.

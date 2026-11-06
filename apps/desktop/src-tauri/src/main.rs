@@ -5,6 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_window_state::StateFlags;
 
 // The log is one JSON file in the app's data folder: ~/Library/Application Support/<identifier>/days.json.
+// The `logbook` command line tool reads and writes the same file.
 fn log_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -22,12 +23,38 @@ fn load_days(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 // Written to a temporary file and renamed over the log, so a crash mid-write never leaves half a log.
+fn write_log(path: &PathBuf, json: &str) -> Result<(), String> {
+    let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
+    fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+// Replaces the whole log (restore from a backup).
 #[tauri::command]
 fn save_days(app: AppHandle, json: String) -> Result<(), String> {
+    write_log(&log_path(&app)?, &json)
+}
+
+// Changes one day against the file as it is now, so a change the CLI made since the page last read it is kept.
+// A file that is not a JSON object is left untouched. Returns the log as written.
+#[tauri::command]
+fn update_day(app: AppHandle, date: String, day: Option<serde_json::Value>) -> Result<String, String> {
     let path = log_path(&app)?;
-    let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, json).map_err(|e| e.to_string())?;
-    fs::rename(&tmp, &path).map_err(|e| e.to_string())
+    let mut log = match fs::read_to_string(&path) {
+        Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(serde_json::Value::Object(map)) => map,
+            _ => return Err("The saved log is not readable, so it was left as it is.".into()),
+        },
+        Err(e) if e.kind() == ErrorKind::NotFound => serde_json::Map::new(),
+        Err(e) => return Err(e.to_string()),
+    };
+    match day {
+        Some(value) => log.insert(date, value),
+        None => log.remove(&date),
+    };
+    let json = serde_json::Value::Object(log).to_string();
+    write_log(&path, &json)?;
+    Ok(json)
 }
 
 // The user picks where the export goes, so the page can never write anywhere on its own. false = cancelled.
@@ -75,7 +102,7 @@ fn main() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_days, save_days, save_file, open_backup, quit])
+        .invoke_handler(tauri::generate_handler![load_days, save_days, update_day, save_file, open_backup, quit])
         .run(tauri::generate_context!())
         .expect("error while running the Logbook widget");
 }
