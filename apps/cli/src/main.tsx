@@ -20,7 +20,8 @@ import { parseArgs } from 'node:util'
 import type { ReactNode } from 'react'
 import { clockIn, clockOut, reset, takeLeave, takeLeaveRange, workFromHome, type Change } from './actions.ts'
 import { App } from './App.tsx'
-import { logFile } from './paths.ts'
+import { logFile, settingsFile } from './paths.ts'
+import { readSettings } from './settings.ts'
 import { readLog, replaceLog, setDay, setDays } from './store.ts'
 import { color } from './theme.ts'
 import { pendingUpdate, refreshCache, selfUpdate } from './update.ts'
@@ -118,7 +119,11 @@ async function run(argv: string[]) {
   switch (command) {
     case '': {
       if (!process.stdin.isTTY || !process.stdout.isTTY) return run(['status'])
-      const app = render(<App file={file} version={version} update={await pendingUpdate(version)} />, { alternateScreen: true })
+      const settings = settingsFile()
+      const app = render(
+        <App file={file} settingsFile={settings} settings={await readSettings(settings)} version={version} update={await pendingUpdate(version)} />,
+        { alternateScreen: true },
+      )
       return app.waitUntilExit()
     }
     case 'status': {

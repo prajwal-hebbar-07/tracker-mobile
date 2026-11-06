@@ -59,7 +59,11 @@ Updates: the widget checks the release feed at launch and every six hours. When 
 
 ## Command line tool
 
-`logbook` opens a full-screen view with the same pages as the widget: Tab or 1–4 switch between Today, Month, Year and More, each page lists its keys, `q` quits. On Month, `r` starts a range at the selected day; move to the other end, `w` counts weekends, and `l` asks for the type and a note and saves leave on every day in it, as the phone's **Plan leave in advance** does. One-shot commands do the common things without opening it:
+`logbook` opens a full-screen view with the same pages as the widget: Tab and Shift+Tab or 1–4 switch between Today, Month, Year and More, each page lists its keys, `q` quits. On Month, `r` starts a range at the selected day; move to the other end, `w` counts weekends, and `l` asks for the type and a note and saves leave on every day in it, as the phone's **Plan leave in advance** does. More also has **Erase all data**, which empties the log shared with the widget once you type `erase`.
+
+**Vim keys** (More → **Vim keys**, remembered between runs): `h j k l` move everywhere arrows do, `H` and `L` go to the previous and next page, and since `h` and `l` only move, work from home becomes `w`, leave `m` and a range `v`. `esc` cancels a range instead of quitting; `q` quits. The setting lives in `~/Library/Application Support/logbook-cli/settings.json` (`~/.config/logbook-cli` on Linux; `LOGBOOK_SETTINGS` points elsewhere).
+
+One-shot commands do the common things without opening it:
 
 ```sh
 logbook status                # today and this month's calendar

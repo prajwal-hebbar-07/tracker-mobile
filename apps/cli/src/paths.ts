@@ -18,3 +18,11 @@ export function cacheDir(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.
   if (platform === 'darwin') return join(home, 'Library', 'Caches', 'logbook-cli')
   return join(env.XDG_CACHE_HOME || join(home, '.cache'), 'logbook-cli')
 }
+
+// The CLI's own preferences (vim keys). LOGBOOK_SETTINGS points at another file.
+export function settingsFile(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
+  if (env.LOGBOOK_SETTINGS) return env.LOGBOOK_SETTINGS
+  const home = homedir()
+  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'logbook-cli', 'settings.json')
+  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'logbook-cli', 'settings.json')
+}

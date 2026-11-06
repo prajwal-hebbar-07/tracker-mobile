@@ -18,7 +18,7 @@ import {
   type Days,
   type LeaveType,
 } from '@logbook/core'
-import { Box, Text, useApp, useInput, useWindowSize } from 'ink'
+import { Box, Text, useApp, useInput, useWindowSize, type Key } from 'ink'
 import TextInput from 'ink-text-input'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
@@ -27,6 +27,7 @@ import { join, resolve } from 'node:path'
 import { useEffect, useRef, useState } from 'react'
 import { clockIn, clockOut, overwrites, reset, takeLeave, takeLeaveRange, workFromHome, type Change, type RangeChange } from './actions.ts'
 import { readLog, replaceLog, setDays as saveDays } from './store.ts'
+import { writeSettings, type Settings } from './settings.ts'
 import { color } from './theme.ts'
 import { selfUpdate } from './update.ts'
 import { Legend, MonthGrid, MonthSummary, Status, YearView } from './views.tsx'
@@ -44,14 +45,38 @@ type PageProps = {
   now: Date
   today: string
   active: boolean
+  vim: boolean
   apply: (date: string, change: Change) => void
   applyRange: (change: RangeChange) => void
   ask: (prompt: Prompt) => void
   say: (flash: Flash) => void
 }
 
-// Full-screen view: Tab or 1-4 switch pages, each page lists its keys at the bottom.
-export function App({ file, version, update }: { file: string; version: string; update: string | null }) {
+type Move = 'left' | 'right' | 'up' | 'down'
+
+// Arrows always move; with vim keys on, h j k l move too.
+function moveOf(input: string, key: Key, vim: boolean): Move | null {
+  if (key.leftArrow || (vim && input === 'h')) return 'left'
+  if (key.rightArrow || (vim && input === 'l')) return 'right'
+  if (key.upArrow || (vim && input === 'k')) return 'up'
+  if (key.downArrow || (vim && input === 'j')) return 'down'
+  return null
+}
+
+// Full-screen view: Tab, Shift+Tab or 1-4 switch pages (and H L with vim keys), each page lists its keys at the bottom.
+export function App({
+  file,
+  settingsFile,
+  settings,
+  version,
+  update,
+}: {
+  file: string
+  settingsFile: string
+  settings: Settings
+  version: string
+  update: string | null
+}) {
   const { exit } = useApp()
   const { columns, rows } = useWindowSize()
   const [days, setDays] = useState<Days>({})
@@ -61,6 +86,7 @@ export function App({ file, version, update }: { file: string; version: string; 
   const [flash, setFlash] = useState<Flash>(null)
   const [prompt, setPrompt] = useState<Prompt | null>(null)
   const seen = useRef('')
+  const [vim, setVim] = useState(settings.vim)
   const today = todayKey(now)
 
   // Re-reads the shared file every 2 s, so changes made in the Mac widget show up here.
@@ -107,19 +133,32 @@ export function App({ file, version, update }: { file: string; version: string; 
     write(change.days, change.message)
   }
 
-  const props = { days, now, today, apply, applyRange, ask: setPrompt, say: setFlash }
+  // Saved right away, so the next `logbook` starts in the same mode.
+  function toggleVim() {
+    const next = !vim
+    setVim(next)
+    writeSettings(settingsFile, { vim: next }).then(
+      () => setFlash({ ok: true, text: next ? 'Vim keys on: h j k l move, H L switch pages, esc no longer quits.' : 'Vim keys off.' }),
+      (error: Error) => setFlash({ ok: false, text: error.message }),
+    )
+  }
+
+  const props = { days, now, today, vim, apply, applyRange, ask: setPrompt, say: setFlash }
 
   function goTo(index: number) {
-    setPage(index)
+    setPage((index + pages.length) % pages.length)
     setFlash(null)
   }
 
   useInput(
     (input, key) => {
-      if (input === 'q' || key.escape) return exit()
+      // Vim users press esc out of habit, so with vim keys only q quits.
+      if (input === 'q' || (key.escape && !vim)) return exit()
       const index = Number(input) - 1
       if (index >= 0 && index < pages.length) return goTo(index)
-      if (key.tab) goTo((page + (key.shift ? pages.length - 1 : 1)) % pages.length)
+      if (key.tab) return goTo(page + (key.shift ? -1 : 1))
+      if (vim && input === 'H') return goTo(page - 1)
+      if (vim && input === 'L') return goTo(page + 1)
     },
     { isActive: !prompt },
   )
@@ -147,9 +186,11 @@ export function App({ file, version, update }: { file: string; version: string; 
           {page === 0 ? <TodayPage {...props} active={!prompt} /> : null}
           {page === 1 ? <MonthPage {...props} active={!prompt} goToday={() => goTo(0)} /> : null}
           {page === 2 ? <YearPage {...props} active={!prompt} /> : null}
-          {page === 3 ? <MorePage {...props} active={!prompt} file={file} version={version} update={update} /> : null}
+          {page === 3 ? (
+            <MorePage {...props} active={!prompt} file={file} version={version} update={update} toggleVim={toggleVim} />
+          ) : null}
         </Box>
-        {prompt ? <PromptView prompt={prompt} close={() => setPrompt(null)} /> : null}
+        {prompt ? <PromptView prompt={prompt} vim={vim} close={() => setPrompt(null)} /> : null}
         {flash ? (
           <Text color={flash.ok ? color.success : color.danger}>
             {flash.ok ? '✓' : '✗'} {flash.text}
@@ -161,7 +202,7 @@ export function App({ file, version, update }: { file: string; version: string; 
           </Text>
         ) : null}
         <Box marginTop={1} justifyContent="space-between">
-          <Text color={color.faint}>tab/1-4 pages</Text>
+          <Text color={color.faint}>{vim ? 'H L · tab · 1-4 pages' : 'tab · shift+tab · 1-4 pages'}</Text>
           <Text color={color.faint}>q quit</Text>
         </Box>
       </Box>
@@ -202,16 +243,22 @@ function askLeave(ask: PageProps['ask'], apply: PageProps['apply'], date: string
   })
 }
 
-function TodayPage({ days, now, today, active, apply, ask }: PageProps) {
+// With vim keys on, h and l only ever move, so the actions that use them take other letters.
+function actionKeys(vim: boolean) {
+  return { home: vim ? 'w' : 'h', leave: vim ? 'm' : 'l', range: vim ? 'v' : 'r' }
+}
+
+function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
   const day = days[today]
   const office = day?.kind === 'office' ? day : null
+  const keyOf = actionKeys(vim)
   useInput(
     (input) => {
       const at = timeNow(now)
       if (input === 'i') apply(today, clockIn(day, undefined, at))
       if (input === 'o') apply(today, clockOut(day, undefined, at))
-      if (input === 'h') apply(today, workFromHome(day))
-      if (input === 'l' && !day) askLeave(ask, apply, today, day, false)
+      if (input === keyOf.home) apply(today, workFromHome(day))
+      if (input === keyOf.leave && !day) askLeave(ask, apply, today, day, false)
       if (input === 's' && day) ask({ kind: 'confirm', label: 'Start today over?', onYes: () => apply(today, reset(day, true)) })
       if (input === 'e' && office?.in) {
         ask({ kind: 'text', label: 'Clock-in time (HH:MM)', initial: office.in, onSubmit: (value) => apply(today, clockIn(day, value, timeNow())) })
@@ -225,8 +272,8 @@ function TodayPage({ days, now, today, active, apply, ask }: PageProps) {
   const keys: [string, string][] = !day
     ? [
         ['i', 'clock in'],
-        ['h', 'from home'],
-        ['l', 'leave'],
+        [keyOf.home, 'from home'],
+        [keyOf.leave, 'leave'],
       ]
     : office?.in && !office.out
       ? [
@@ -284,7 +331,9 @@ function askLeaveRange(
   })
 }
 
-function MonthPage({ days, today, active, apply, applyRange, ask, say, goToday }: PageProps & { goToday: () => void }) {
+function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goToday }: PageProps & { goToday: () => void }) {
+  const keyOf = actionKeys(vim)
+  const arrows = vim ? 'hjkl' : '←↑↓→'
   const [selected, setSelected] = useState(today)
   // Where a range of leave starts; the cursor is the other end, as on the phone's Plan leave sheet.
   const [anchor, setAnchor] = useState<string | null>(null)
@@ -300,17 +349,16 @@ function MonthPage({ days, today, active, apply, applyRange, ask, say, goToday }
   }
   useInput(
     (input, key) => {
-      if (key.leftArrow) setSelected(addDays(selected, -1))
-      if (key.rightArrow) setSelected(addDays(selected, 1))
-      if (key.upArrow) setSelected(addDays(selected, -7))
-      if (key.downArrow) setSelected(addDays(selected, 7))
+      const move = moveOf(input, key, vim)
+      if (move) return setSelected(addDays(selected, { left: -1, right: 1, up: -7, down: 7 }[move]))
       if (input === '[') shiftMonth(-1)
       if (input === ']') shiftMonth(1)
       if (input === 't') setSelected(today)
-      if (input === 'r') return setAnchor(anchor ? null : selected)
+      if (input === keyOf.range) return setAnchor(anchor ? null : selected)
       if (range) {
+        if (vim && key.escape) return setAnchor(null)
         if (input === 'w') setWeekends(!weekends)
-        if (input === 'l') {
+        if (input === keyOf.leave) {
           if (planned.length === 0) return say({ ok: false, text: 'No working days in that range. Press w to count weekends.' })
           askLeaveRange({ days, ask, applyRange }, range, planned, () => setAnchor(null))
         }
@@ -318,7 +366,7 @@ function MonthPage({ days, today, active, apply, applyRange, ask, say, goToday }
       }
       if (key.return && selected === today) goToday()
       if (selected === today) return
-      if (input === 'l') {
+      if (input === keyOf.leave) {
         if (day && day.kind !== 'leave') {
           ask({ kind: 'confirm', label: `Replace ${describeDay(day)} with leave?`, onYes: () => askLeave(ask, apply, selected, day, true) })
         } else {
@@ -333,26 +381,26 @@ function MonthPage({ days, today, active, apply, applyRange, ask, say, goToday }
   )
   const keys: [string, string][] = range
     ? [
-        ['←↑↓→', 'extend'],
+        [arrows, 'extend'],
         ['[ ]', 'month'],
-        ['l', `leave on ${plural(planned.length, 'day')}`],
+        [keyOf.leave, `leave on ${plural(planned.length, 'day')}`],
         ['w', weekends ? 'skip weekends' : 'count weekends'],
-        ['r', 'cancel range'],
+        [vim ? 'v/esc' : 'r', 'cancel range'],
       ]
     : selected === today
       ? [
-          ['←↑↓→', 'day'],
+          [arrows, 'day'],
           ['[ ]', 'month'],
           ['enter', 'open Today'],
-          ['r', 'range'],
+          [keyOf.range, 'range'],
         ]
       : [
-          ['←↑↓→', 'day'],
+          [arrows, 'day'],
           ['[ ]', 'month'],
           ['t', 'today'],
-          ['l', day?.kind === 'leave' ? 'edit leave' : 'mark leave'],
+          [keyOf.leave, day?.kind === 'leave' ? 'edit leave' : 'mark leave'],
           ...(day?.kind === 'leave' ? ([['d', 'remove']] as [string, string][]) : []),
-          ['r', 'range'],
+          [keyOf.range, 'range'],
         ]
   return (
     <Box flexDirection="column" gap={1}>
@@ -387,13 +435,14 @@ function MonthPage({ days, today, active, apply, applyRange, ask, say, goToday }
   )
 }
 
-function YearPage({ days, today, active }: PageProps) {
+function YearPage({ days, today, active, vim }: PageProps) {
   const thisYear = Number(today.slice(0, 4))
   const [year, setYear] = useState(thisYear)
   useInput(
     (input, key) => {
-      if (key.leftArrow) setYear(year - 1)
-      if (key.rightArrow) setYear(year + 1)
+      const move = moveOf(input, key, vim)
+      if (move === 'left') setYear(year - 1)
+      if (move === 'right') setYear(year + 1)
       if (input === 't') setYear(thisYear)
     },
     { isActive: active },
@@ -403,7 +452,7 @@ function YearPage({ days, today, active }: PageProps) {
       <YearView days={days} year={year} today={today} />
       <Keys
         items={[
-          ['← →', 'year'],
+          [vim ? 'h l' : '← →', 'year'],
           ['t', 'this year'],
         ]}
       />
@@ -421,12 +470,14 @@ function MorePage({
   days,
   today,
   active,
+  vim,
   ask,
   say,
   file,
   version,
   update,
-}: PageProps & { file: string; version: string; update: string | null }) {
+  toggleVim,
+}: PageProps & { file: string; version: string; update: string | null; toggleVim: () => void }) {
   const [cursor, setCursor] = useState(0)
   const year = Number(today.slice(0, 4))
   const month = Number(today.slice(5, 7)) - 1
@@ -502,6 +553,26 @@ function MorePage({
         }),
     },
     {
+      // The widget shares this log, so erasing here empties it too; typing the word keeps a stray Enter from doing it.
+      label: 'Erase all data',
+      run: () => {
+        const count = Object.keys(days).length
+        if (count === 0) return say({ ok: true, text: 'The log is already empty.' })
+        ask({
+          kind: 'text',
+          label: `Type erase to delete all ${plural(count, 'day')}, here and in the widget. Save a backup first to keep them.`,
+          onSubmit: (value) => {
+            if (value.trim().toLowerCase() !== 'erase') return say({ ok: false, text: 'Nothing was erased.' })
+            replaceLog(file, {}).then(
+              () => say({ ok: true, text: `Erased ${plural(count, 'day')}.` }),
+              (error: Error) => say({ ok: false, text: error.message }),
+            )
+          },
+        })
+      },
+    },
+    { label: `Vim keys: ${vim ? 'on' : 'off'}`, run: toggleVim },
+    {
       label: update ? `Update to ${update}` : 'Check for updates',
       run: () => {
         say({ ok: true, text: 'Checking GitHub…' })
@@ -514,9 +585,10 @@ function MorePage({
   ]
 
   useInput(
-    (_input, key) => {
-      if (key.upArrow) setCursor((cursor + actions.length - 1) % actions.length)
-      if (key.downArrow) setCursor((cursor + 1) % actions.length)
+    (input, key) => {
+      const move = moveOf(input, key, vim)
+      if (move === 'up') setCursor((cursor + actions.length - 1) % actions.length)
+      if (move === 'down') setCursor((cursor + 1) % actions.length)
       if (key.return) actions[cursor].run()
     },
     { isActive: active },
@@ -536,7 +608,7 @@ function MorePage({
       </Box>
       <Keys
         items={[
-          ['↑↓', 'choose'],
+          [vim ? 'j k' : '↑↓', 'choose'],
           ['enter', 'run'],
         ]}
       />
@@ -544,7 +616,7 @@ function MorePage({
   )
 }
 
-function PromptView({ prompt, close }: { prompt: Prompt; close: () => void }) {
+function PromptView({ prompt, vim, close }: { prompt: Prompt; vim: boolean; close: () => void }) {
   const [value, setValue] = useState(prompt.kind === 'text' ? (prompt.initial ?? '') : '')
   const [cursor, setCursor] = useState(0)
   useInput((input, key) => {
@@ -556,8 +628,9 @@ function PromptView({ prompt, close }: { prompt: Prompt; close: () => void }) {
       } else if (input === 'n') close()
     }
     if (prompt.kind === 'choice') {
-      if (key.upArrow) setCursor((cursor + prompt.options.length - 1) % prompt.options.length)
-      if (key.downArrow) setCursor((cursor + 1) % prompt.options.length)
+      const move = moveOf(input, key, vim)
+      if (move === 'up') setCursor((cursor + prompt.options.length - 1) % prompt.options.length)
+      if (move === 'down') setCursor((cursor + 1) % prompt.options.length)
       const picked = Number(input) - 1
       if (key.return || (picked >= 0 && picked < prompt.options.length)) {
         close()
