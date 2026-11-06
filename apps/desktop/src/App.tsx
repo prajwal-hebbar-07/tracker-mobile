@@ -5,12 +5,14 @@ import { Month } from './pages/Month'
 import { More } from './pages/More'
 import { Today } from './pages/Today'
 import { Year } from './pages/Year'
+import { useUpdate } from './update'
 
 const pages = ['Today', 'Month', 'Year', 'More'] as const
 
 // One page per screen; swipe sideways on the trackpad, click a dot, or use ← →.
 export function App() {
   const log = useLog()
+  const update = useUpdate()
   const [now, setNow] = useState(() => new Date())
   const [page, setPage] = useState(0)
   const pager = useRef<HTMLDivElement>(null)
@@ -66,6 +68,11 @@ export function App() {
         </nav>
       </header>
       {log.error ? <div className="banner">{log.error}</div> : null}
+      {update.available && page !== 3 ? (
+        <button type="button" className="banner update" onClick={() => goTo(3)}>
+          Version {update.available} is ready · Update on More
+        </button>
+      ) : null}
       <div
         ref={pager}
         className="pager"
@@ -83,7 +90,7 @@ export function App() {
               <Year log={log} now={now} />
             </section>
             <section className="page" aria-label="More">
-              <More log={log} now={now} />
+              <More log={log} now={now} update={update} />
             </section>
           </>
         ) : null}

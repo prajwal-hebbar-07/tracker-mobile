@@ -59,3 +59,14 @@ export function openBackup(): Promise<string | null> {
 export function quit(): void {
   if (inApp) void invoke('quit')
 }
+
+// The newer version on the widget's release feed, or null. Never offered in the browser preview.
+export function checkUpdate(): Promise<string | null> {
+  if (!inApp) return Promise.resolve(null)
+  return invoke<string | null>('check_update')
+}
+
+// Downloads, verifies and installs the update, then restarts the widget.
+export async function installUpdate(): Promise<void> {
+  if (inApp) await invoke('install_update')
+}

@@ -100,6 +100,14 @@ header strong {
   color: var(--danger);
 }
 
+.banner.update {
+  border: 0;
+  text-align: left;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--office) 20%, transparent);
+  color: var(--office);
+}
+
 .pager {
   flex: 1;
   display: flex;

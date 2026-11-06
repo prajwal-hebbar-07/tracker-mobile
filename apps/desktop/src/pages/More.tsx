@@ -1,14 +1,15 @@
 import { cleanDays, excelMonthSheet, excelSheets, maxExcelYears, plural, todayKey, toXlsx, type Days } from '@logbook/core'
-import { mdiBackupRestore, mdiContentCopy, mdiDatabaseExportOutline, mdiFileOutline, mdiMicrosoftExcel, mdiPower } from '@mdi/js'
+import { mdiBackupRestore, mdiContentCopy, mdiDatabaseExportOutline, mdiDownload, mdiFileOutline, mdiMicrosoftExcel, mdiPower, mdiRefresh } from '@mdi/js'
 import { useState } from 'react'
 import type { Log } from '../log'
 import { canQuit, openBackup, quit, saveFile } from '../native'
 import { Button, useConfirm } from '../ui'
+import type { Update } from '../update'
 
 type Message = { ok: boolean; text: string } | null
 
 // Exports use the same workbook as the phone. Backups are the phone's JSON, so a log moves either way.
-export function More({ log, now }: { log: Log; now: Date }) {
+export function More({ log, now, update }: { log: Log; now: Date; update: Update }) {
   const today = todayKey(now)
   const year = now.getFullYear()
   const month = now.getMonth()
@@ -136,7 +137,24 @@ export function More({ log, now }: { log: Log; now: Date }) {
       )}
 
       {message ? <div className={message.ok ? 'ok' : 'danger'}>{message.text}</div> : null}
-      {canQuit ? <Button label="Quit widget" icon={mdiPower} variant="ghost" tint="var(--muted)" onClick={quit} /> : null}
+      {canQuit ? (
+        <>
+          <span className="label">Updates</span>
+          {update.available ? (
+            <Button
+              label={`Update to ${update.available} and restart`}
+              icon={mdiDownload}
+              variant="primary"
+              disabled={update.busy}
+              onClick={update.install}
+            />
+          ) : (
+            <Button label="Check for updates" icon={mdiRefresh} disabled={update.busy} onClick={update.check} />
+          )}
+          {update.status ? <div className="muted">{update.status}</div> : null}
+          <Button label="Quit widget" icon={mdiPower} variant="ghost" tint="var(--muted)" onClick={quit} />
+        </>
+      ) : null}
       {dialog}
     </div>
   )

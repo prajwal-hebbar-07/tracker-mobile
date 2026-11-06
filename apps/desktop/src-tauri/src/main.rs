@@ -2,6 +2,7 @@ use std::{fs, io::ErrorKind, path::PathBuf};
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_window_state::StateFlags;
 
 // The log's folder: ~/Library/Application Support/works.oni.logbook.widget/days.json. It is named here, not taken from
@@ -97,9 +98,27 @@ fn quit(app: AppHandle) {
     app.exit(0);
 }
 
+// The newer version on the release feed, if any. Only versions signed with the release key are offered.
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
+    let update = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    Ok(update.map(|found| found.version))
+}
+
+// Downloads the update, checks its signature, replaces the app and restarts it. The log is not part of the app.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let Some(update) = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())? else {
+        return Err("No update is available any more.".into());
+    };
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    app.restart()
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(StateFlags::POSITION)
@@ -111,7 +130,16 @@ fn main() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_days, save_days, update_day, save_file, open_backup, quit])
+        .invoke_handler(tauri::generate_handler![
+            load_days,
+            save_days,
+            update_day,
+            save_file,
+            open_backup,
+            quit,
+            check_update,
+            install_update
+        ])
         .run(tauri::generate_context!())
         .expect("error while running the Logbook widget");
 }

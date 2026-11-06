@@ -48,5 +48,11 @@
       "signingIdentity": "-",
       "minimumSystemVersion": "14.4"
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDQUM4QzhGRDY0M0E1MjAKUldRZ3BVUFdqNHlzL0Rzek0wVHBrQzA2OXNsQ1VTNkY4SGpBN2oxcWFTRGdoczYrZjhUVUJxa2UK",
+      "endpoints": ["https://github.com/prajwal-hebbar-07/tracker-mobile/releases/download/widget-updates/latest.json"]
+    }
   }
 }
