@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { readLog, setDay, UnreadableLog } from './store.ts'
+import { readLog, setDay, setDays, UnreadableLog } from './store.ts'
 
 const fresh = async () => join(await mkdtemp(join(tmpdir(), 'logbook-')), 'nested', 'days.json')
 
@@ -34,4 +34,15 @@ test('removing a day leaves the others, and bad dates are refused', async () => 
   await setDay(file, '2026-11-03', { kind: 'wfh' })
   assert.deepEqual(Object.keys(await setDay(file, '2026-11-02', null)), ['2026-11-03'])
   await assert.rejects(setDay(file, '2026-02-30', { kind: 'wfh' }))
+})
+
+test('several days are written together, or not at all when one date is bad', async () => {
+  const file = await fresh()
+  await setDay(file, '2026-11-02', { kind: 'wfh' })
+  const leave = { kind: 'leave', leaveType: 'sick' } as const
+  await assert.rejects(setDays(file, { '2026-11-03': leave, '2026-02-30': leave }))
+  assert.deepEqual(await readLog(file), { '2026-11-02': { kind: 'wfh' } })
+  const days = await setDays(file, { '2026-11-02': null, '2026-11-03': leave, '2026-11-04': leave })
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), days)
+  assert.deepEqual(Object.keys(days).sort(), ['2026-11-03', '2026-11-04'])
 })

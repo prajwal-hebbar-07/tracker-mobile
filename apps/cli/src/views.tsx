@@ -67,19 +67,21 @@ export function Status({ day, now, today }: { day?: Day; now: Date; today: strin
 
 const dow = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 
-// Monday-first heatmap; each day is a coloured block like the phone's calendar.
+// Monday-first heatmap; each day is a coloured block like the phone's calendar. `planned` marks a range of leave being picked.
 export function MonthGrid({
   days,
   year,
   month,
   today,
   selected,
+  planned = [],
 }: {
   days: Days
   year: number
   month: number
   today: string
   selected?: string
+  planned?: string[]
 }) {
   const cells = monthCells(year, month)
   const weeks = Array.from({ length: cells.length / 7 }, (_, index) => cells.slice(index * 7, index * 7 + 7))
@@ -102,11 +104,11 @@ export function MonthGrid({
             const future = date > today && kind === 'none'
             const filled = !future
             const ink = kind === 'office' || kind === 'wfh' ? color.ink : future ? color.faint : color.text
-            const marker = date === selected ? '›' : ' '
+            const marker = date === selected ? '›' : planned.includes(date) ? '•' : ' '
             const label = String(Number(date.slice(8))).padStart(2, ' ')
             return (
               <Box key={date} width={5}>
-                <Text color={color.office}>{marker}</Text>
+                <Text color={date === selected ? color.office : color.leave}>{marker}</Text>
                 <Text
                   backgroundColor={filled ? toneColor[kind] : undefined}
                   color={date === today ? color.office : ink}

@@ -1,13 +1,27 @@
-import { cleanDays, excelLabel, excelMonthSheet, excelSheets, leaveTypes, plural, timeNow, todayKey, toXlsx, type Days, type LeaveType } from '@logbook/core'
+import {
+  cleanDays,
+  excelLabel,
+  excelMonthSheet,
+  excelSheets,
+  isDateKey,
+  leaveDates,
+  leaveTypes,
+  plural,
+  timeNow,
+  todayKey,
+  toXlsx,
+  type Days,
+  type LeaveType,
+} from '@logbook/core'
 import { Box, render, renderToString, Text } from 'ink'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import type { ReactNode } from 'react'
-import { clockIn, clockOut, reset, takeLeave, workFromHome, type Change } from './actions.ts'
+import { clockIn, clockOut, reset, takeLeave, takeLeaveRange, workFromHome, type Change } from './actions.ts'
 import { App } from './App.tsx'
 import { logFile } from './paths.ts'
-import { readLog, replaceLog, setDay } from './store.ts'
+import { readLog, replaceLog, setDay, setDays } from './store.ts'
 import { color } from './theme.ts'
 import { pendingUpdate, refreshCache, selfUpdate } from './update.ts'
 import { MonthView, Status, YearView } from './views.tsx'
@@ -24,6 +38,9 @@ const help = `Logbook: attendance and leave from the terminal. Shares its log wi
   logbook home                    work from home today
   logbook leave TYPE [--date YYYY-MM-DD] [--note TEXT] [--replace]
                                   TYPE: ${leaveTypes.map((item) => item.id).join(', ')}
+  logbook leave TYPE --from YYYY-MM-DD [--to YYYY-MM-DD] [--weekends] [--note TEXT] [--replace]
+                                  leave on every working day of a range (--from defaults to today,
+                                  --to to --from); --weekends counts Saturday and Sunday too
   logbook reset [--date YYYY-MM-DD]
                                   start today over, or remove leave on another day
   logbook month [YYYY-MM]         a month's calendar
@@ -51,7 +68,7 @@ function say(change: Change) {
 
 function dateOption(value: string | undefined, today: string): string {
   if (value == null) return today
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Problem(`${value} is not a date. Use YYYY-MM-DD.`)
+  if (!isDateKey(value)) throw new Problem(`${value} is not a date. Use YYYY-MM-DD.`)
   return value
 }
 
@@ -78,6 +95,8 @@ async function run(argv: string[]) {
     allowPositionals: true,
     options: {
       date: { type: 'string' },
+      to: { type: 'string' },
+      weekends: { type: 'boolean', default: false },
       note: { type: 'string', default: '' },
       replace: { type: 'boolean', default: false },
       month: { type: 'string' },
@@ -120,8 +139,19 @@ async function run(argv: string[]) {
     case 'leave': {
       const type = leaveTypes.find((item) => item.id === arg)?.id as LeaveType | undefined
       if (!type) throw new Problem(`Pick a leave type: ${leaveTypes.map((item) => item.id).join(', ')}.`)
-      const date = dateOption(values.date, today)
-      return change(file, date, (days) => takeLeave(days[date], type, values.note ?? '', values.replace ?? false))
+      const note = values.note ?? ''
+      const replace = values.replace ?? false
+      if (values.from == null && values.to == null) {
+        const date = dateOption(values.date, today)
+        return change(file, date, (days) => takeLeave(days[date], type, note, replace))
+      }
+      if (values.date != null) throw new Problem('Use --date for one day, or --from and --to for a range, not both.')
+      const from = dateOption(values.from, today)
+      const to = dateOption(values.to, from)
+      if (to < from) throw new Problem(`--to ${to} is before --from ${from}.`)
+      const result = takeLeaveRange(await readLog(file), leaveDates(from, to, values.weekends ?? false), type, note, replace)
+      if (result.ok) await setDays(file, result.days)
+      return say(result.ok ? { ok: true, day: null, message: result.message } : result)
     }
     case 'reset': {
       const date = dateOption(values.date, today)

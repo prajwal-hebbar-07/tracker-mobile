@@ -37,18 +37,27 @@ async function writeLog(file: string, days: Days): Promise<void> {
 }
 
 // Re-reads the file right before writing, so a change the widget made in the meantime is kept.
-export async function setDay(file: string, date: string, day: Day | null): Promise<Days> {
-  if (!isDateKey(date)) throw new Error(`${date} is not a date. Use YYYY-MM-DD.`)
+// All the changes land in one write: a range of leave is never half saved.
+export async function setDays(file: string, changes: Record<string, Day | null>): Promise<Days> {
+  const entries = Object.entries(changes)
+  const cleaned = entries.map(([date, day]) => {
+    if (!isDateKey(date)) throw new Error(`${date} is not a date. Use YYYY-MM-DD.`)
+    if (!day) return [date, null] as const
+    const valid = cleanDay(day)
+    if (!valid) throw new Error('That day is not valid.')
+    return [date, valid] as const
+  })
   const days = await readLog(file)
-  if (day) {
-    const cleaned = cleanDay(day)
-    if (!cleaned) throw new Error('That day is not valid.')
-    days[date] = cleaned
-  } else {
-    delete days[date]
+  for (const [date, day] of cleaned) {
+    if (day) days[date] = day
+    else delete days[date]
   }
   await writeLog(file, days)
   return days
+}
+
+export function setDay(file: string, date: string, day: Day | null): Promise<Days> {
+  return setDays(file, { [date]: day })
 }
 
 // Restore: replaces everything, including a log that could not be read.

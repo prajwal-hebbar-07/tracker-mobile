@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { clockIn, clockOut, reset, takeLeave, workFromHome, type Change } from './actions.ts'
+import { leaveDates } from '@logbook/core'
+import { clockIn, clockOut, reset, takeLeave, takeLeaveRange, workFromHome, type Change } from './actions.ts'
 
 const now = '12:00'
 
@@ -40,6 +41,19 @@ test('leave replaces a worked day only when asked, and notes are trimmed', () =>
     note: 'flu',
   })
   assert.deepEqual(written(takeLeave({ kind: 'leave', leaveType: 'sick' }, 'personal', '', false)), { kind: 'leave', leaveType: 'personal' })
+})
+
+test('leave over a range skips weekends, keeps leave already taken, and replaces worked days only when asked', () => {
+  // Fri 6 Nov to Tue 10 Nov 2026; the 9th is an office day, the 10th is already leave.
+  const days = { '2026-11-09': { kind: 'office', in: '09:00' }, '2026-11-10': { kind: 'leave', leaveType: 'sick' } } as const
+  const dates = leaveDates('2026-11-06', '2026-11-10', false)
+  assert.equal(takeLeaveRange(days, dates, 'personal', '', false).ok, false)
+  const change = takeLeaveRange(days, dates, 'personal', ' trip ', true)
+  assert.ok(change.ok, change.message)
+  const leave = { kind: 'leave', leaveType: 'personal', note: 'trip' }
+  assert.deepEqual(change.days, { '2026-11-06': leave, '2026-11-09': leave, '2026-11-10': leave })
+  assert.ok(takeLeaveRange({ '2026-11-10': { kind: 'leave' } }, ['2026-11-10'], 'sick', '', false).ok)
+  assert.equal(takeLeaveRange({}, leaveDates('2026-11-07', '2026-11-08', false), 'sick', '', true).ok, false)
 })
 
 test('other days only lose leave; today starts over from anything', () => {

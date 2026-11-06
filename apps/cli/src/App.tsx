@@ -5,6 +5,9 @@ import {
   excelMonthSheet,
   excelSheets,
   formatLong,
+  formatRange,
+  formatShort,
+  leaveDates,
   leaveTypes,
   maxExcelYears,
   plural,
@@ -22,8 +25,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { useEffect, useRef, useState } from 'react'
-import { clockIn, clockOut, reset, takeLeave, workFromHome, type Change } from './actions.ts'
-import { readLog, replaceLog, setDay } from './store.ts'
+import { clockIn, clockOut, overwrites, reset, takeLeave, takeLeaveRange, workFromHome, type Change, type RangeChange } from './actions.ts'
+import { readLog, replaceLog, setDays as saveDays } from './store.ts'
 import { color } from './theme.ts'
 import { selfUpdate } from './update.ts'
 import { Legend, MonthGrid, MonthSummary, Status, YearView } from './views.tsx'
@@ -42,6 +45,7 @@ type PageProps = {
   today: string
   active: boolean
   apply: (date: string, change: Change) => void
+  applyRange: (change: RangeChange) => void
   ask: (prompt: Prompt) => void
   say: (flash: Flash) => void
 }
@@ -82,19 +86,28 @@ export function App({ file, version, update }: { file: string; version: string; 
     }
   }, [file])
 
-  function apply(date: string, change: Change) {
-    if (!change.ok) return setFlash({ ok: false, text: change.message })
-    setDay(file, date, change.day).then(
+  function write(changes: Record<string, Day | null>, message: string) {
+    saveDays(file, changes).then(
       (next) => {
         seen.current = JSON.stringify(next)
         setDays(next)
-        setFlash({ ok: true, text: change.message })
+        setFlash({ ok: true, text: message })
       },
       (error: Error) => setFlash({ ok: false, text: error.message }),
     )
   }
 
-  const props = { days, now, today, apply, ask: setPrompt, say: setFlash }
+  function apply(date: string, change: Change) {
+    if (!change.ok) return setFlash({ ok: false, text: change.message })
+    write({ [date]: change.day }, change.message)
+  }
+
+  function applyRange(change: RangeChange) {
+    if (!change.ok) return setFlash({ ok: false, text: change.message })
+    write(change.days, change.message)
+  }
+
+  const props = { days, now, today, apply, applyRange, ask: setPrompt, say: setFlash }
 
   function goTo(index: number) {
     setPage(index)
@@ -241,11 +254,46 @@ function TodayPage({ days, now, today, active, apply, ask }: PageProps) {
   )
 }
 
-function MonthPage({ days, today, active, apply, ask, goToday }: PageProps & { goToday: () => void }) {
+// Asks for the type and an optional note, confirms replacing logged days, then saves every date at once.
+function askLeaveRange(
+  { days, ask, applyRange }: Pick<PageProps, 'days' | 'ask' | 'applyRange'>,
+  range: { from: string; to: string },
+  dates: string[],
+  done: () => void,
+) {
+  ask({
+    kind: 'choice',
+    label: `Leave on ${formatRange(range.from, range.to)}, ${plural(dates.length, 'day')}`,
+    options: leaveTypes.map((item) => item.label),
+    onPick: (index) => {
+      const leaveType: LeaveType = leaveTypes[index].id
+      ask({
+        kind: 'text',
+        label: 'Note (optional), Enter to save',
+        onSubmit: (note) => {
+          const save = () => {
+            applyRange(takeLeaveRange(days, dates, leaveType, note, true))
+            done()
+          }
+          const taken = overwrites(days, dates)
+          if (taken.length === 0) return save()
+          ask({ kind: 'confirm', label: `Replace ${plural(taken.length, 'logged day')} with leave? ${taken.map(formatShort).join(', ')}`, onYes: save })
+        },
+      })
+    },
+  })
+}
+
+function MonthPage({ days, today, active, apply, applyRange, ask, say, goToday }: PageProps & { goToday: () => void }) {
   const [selected, setSelected] = useState(today)
+  // Where a range of leave starts; the cursor is the other end, as on the phone's Plan leave sheet.
+  const [anchor, setAnchor] = useState<string | null>(null)
+  const [weekends, setWeekends] = useState(false)
   const year = Number(selected.slice(0, 4))
   const month = Number(selected.slice(5, 7)) - 1
   const day = days[selected]
+  const range = anchor ? (anchor <= selected ? { from: anchor, to: selected } : { from: selected, to: anchor }) : null
+  const planned = range ? leaveDates(range.from, range.to, weekends) : []
   const shiftMonth = (delta: number) => {
     const next = new Date(year, month + delta, 1)
     setSelected(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`)
@@ -259,6 +307,15 @@ function MonthPage({ days, today, active, apply, ask, goToday }: PageProps & { g
       if (input === '[') shiftMonth(-1)
       if (input === ']') shiftMonth(1)
       if (input === 't') setSelected(today)
+      if (input === 'r') return setAnchor(anchor ? null : selected)
+      if (range) {
+        if (input === 'w') setWeekends(!weekends)
+        if (input === 'l') {
+          if (planned.length === 0) return say({ ok: false, text: 'No working days in that range. Press w to count weekends.' })
+          askLeaveRange({ days, ask, applyRange }, range, planned, () => setAnchor(null))
+        }
+        return
+      }
       if (key.return && selected === today) goToday()
       if (selected === today) return
       if (input === 'l') {
@@ -274,40 +331,58 @@ function MonthPage({ days, today, active, apply, ask, goToday }: PageProps & { g
     },
     { isActive: active },
   )
+  const keys: [string, string][] = range
+    ? [
+        ['←↑↓→', 'extend'],
+        ['[ ]', 'month'],
+        ['l', `leave on ${plural(planned.length, 'day')}`],
+        ['w', weekends ? 'skip weekends' : 'count weekends'],
+        ['r', 'cancel range'],
+      ]
+    : selected === today
+      ? [
+          ['←↑↓→', 'day'],
+          ['[ ]', 'month'],
+          ['enter', 'open Today'],
+          ['r', 'range'],
+        ]
+      : [
+          ['←↑↓→', 'day'],
+          ['[ ]', 'month'],
+          ['t', 'today'],
+          ['l', day?.kind === 'leave' ? 'edit leave' : 'mark leave'],
+          ...(day?.kind === 'leave' ? ([['d', 'remove']] as [string, string][]) : []),
+          ['r', 'range'],
+        ]
   return (
     <Box flexDirection="column" gap={1}>
       <Text bold color={color.text}>
         {new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
       </Text>
-      <MonthGrid days={days} year={year} month={month} today={today} selected={selected} />
+      <MonthGrid days={days} year={year} month={month} today={today} selected={selected} planned={planned} />
       <Legend />
-      <Box flexDirection="column">
-        <Text color={color.text} bold>
-          {formatLong(selected)}
-        </Text>
-        <Text color={color.muted}>
-          {day ? describeDay(day) : 'Nothing logged'}
-          {day?.kind === 'leave' && day.note ? ` — ${day.note}` : ''}
-        </Text>
-        <MonthSummary days={days} year={year} month={month} today={today} />
-      </Box>
-      <Keys
-        items={
-          selected === today
-            ? [
-                ['←↑↓→', 'day'],
-                ['[ ]', 'month'],
-                ['enter', 'open Today'],
-              ]
-            : [
-                ['←↑↓→', 'day'],
-                ['[ ]', 'month'],
-                ['t', 'today'],
-                ['l', day?.kind === 'leave' ? 'edit leave' : 'mark leave'],
-                ...(day?.kind === 'leave' ? ([['d', 'remove']] as [string, string][]) : []),
-              ]
-        }
-      />
+      {range ? (
+        <Box flexDirection="column">
+          <Text color={color.leave} bold>
+            {formatRange(range.from, range.to)}
+          </Text>
+          <Text color={color.muted}>
+            {plural(planned.length, 'day')} of leave · weekends {weekends ? 'counted' : 'skipped'}
+          </Text>
+        </Box>
+      ) : (
+        <Box flexDirection="column">
+          <Text color={color.text} bold>
+            {formatLong(selected)}
+          </Text>
+          <Text color={color.muted}>
+            {day ? describeDay(day) : 'Nothing logged'}
+            {day?.kind === 'leave' && day.note ? ` — ${day.note}` : ''}
+          </Text>
+          <MonthSummary days={days} year={year} month={month} today={today} />
+        </Box>
+      )}
+      <Keys items={keys} />
     </Box>
   )
 }

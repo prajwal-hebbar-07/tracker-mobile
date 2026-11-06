@@ -59,7 +59,7 @@ Updates: the widget checks the release feed at launch and every six hours. When 
 
 ## Command line tool
 
-`logbook` opens a full-screen view with the same pages as the widget: Tab or 1–4 switch between Today, Month, Year and More, each page lists its keys, `q` quits. One-shot commands do the common things without opening it:
+`logbook` opens a full-screen view with the same pages as the widget: Tab or 1–4 switch between Today, Month, Year and More, each page lists its keys, `q` quits. On Month, `r` starts a range at the selected day; move to the other end, `w` counts weekends, and `l` asks for the type and a note and saves leave on every day in it, as the phone's **Plan leave in advance** does. One-shot commands do the common things without opening it:
 
 ```sh
 logbook status                # today and this month's calendar
@@ -67,6 +67,7 @@ logbook in [09:15]            # clock in now or at a time; again to fix the time
 logbook out [18:30]           # clock out
 logbook home                  # work from home today
 logbook leave sick --date 2026-11-12 --note "dentist"   # personal, early, sick or lop
+logbook leave personal --from 2026-12-22 --to 2026-12-31   # a range; weekends skipped unless --weekends
 logbook reset [--date …]      # start today over, or remove leave on another day
 logbook month 2026-10         # a month's calendar
 logbook year                  # totals and months
@@ -75,7 +76,7 @@ logbook backup > backup.json  # JSON backup; logbook restore backup.json replace
 logbook help
 ```
 
-It follows the phone's rules: clock in, clock out and home only happen today; other days take leave, and replacing a worked day with leave needs `--replace`. It reads and writes the widget's log file, one day at a time against the file as it is, so neither overwrites the other; the widget re-reads the file every few seconds and the interactive view every two. Set `LOGBOOK_FILE` to use another log.
+It follows the phone's rules: clock in, clock out and home only happen today; other days take leave, and replacing a worked day with leave needs `--replace` (the interactive view asks instead). It reads and writes the widget's log file against the file as it is, one write per change (a range of leave lands in a single write), so neither overwrites the other; the widget re-reads the file every few seconds and the interactive view every two. Set `LOGBOOK_FILE` to use another log.
 
 Install (needs Node.js 22 or newer):
 

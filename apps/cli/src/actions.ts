@@ -1,4 +1,4 @@
-import { describeDay, normalizeTime, type Day, type LeaveType } from '@logbook/core'
+import { describeDay, formatRange, formatShort, leaveLabel, normalizeTime, plural, type Day, type Days, type LeaveType } from '@logbook/core'
 
 // The phone's rules, shared by the commands and the interactive view: clock in, clock out and work from
 // home only happen today; any day can take leave; office and home days are only undone from today.
@@ -48,6 +48,33 @@ export function takeLeave(day: Day | undefined, leaveType: LeaveType, note: stri
   const trimmed = note.trim().slice(0, 280)
   const next: Day = { kind: 'leave', leaveType, ...(trimmed ? { note: trimmed } : {}) }
   return { ok: true, day: next, message: `${describeDay(next)} saved.` }
+}
+
+// Several days written together, for leave over a range of dates.
+export type RangeChange = { ok: true; days: Record<string, Day>; message: string } | { ok: false; message: string }
+
+// Days in `dates` logged as something other than leave; taking leave over them needs `replace`.
+export function overwrites(days: Days, dates: string[]): string[] {
+  return dates.filter((date) => days[date] && days[date].kind !== 'leave')
+}
+
+// The same leave on every date, as the phone's Plan leave sheet does. `dates` comes from `leaveDates`.
+export function takeLeaveRange(days: Days, dates: string[], leaveType: LeaveType, note: string, replace: boolean): RangeChange {
+  if (dates.length === 0) return { ok: false, message: 'No working days in that range. Add --weekends to include Saturday and Sunday.' }
+  const taken = overwrites(days, dates)
+  if (taken.length > 0 && !replace) {
+    return {
+      ok: false,
+      message: `${taken.map(formatShort).join(', ')} ${taken.length === 1 ? 'is' : 'are'} already logged. Add --replace to turn ${taken.length === 1 ? 'it' : 'them'} into leave.`,
+    }
+  }
+  const trimmed = note.trim().slice(0, 280)
+  const next: Day = { kind: 'leave', leaveType, ...(trimmed ? { note: trimmed } : {}) }
+  return {
+    ok: true,
+    days: Object.fromEntries(dates.map((date) => [date, next])),
+    message: `${leaveLabel(leaveType)} saved for ${plural(dates.length, 'day')}, ${formatRange(dates[0], dates[dates.length - 1])}.`,
+  }
 }
 
 // Today starts over from anything; other days only lose leave.
