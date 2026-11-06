@@ -24,20 +24,29 @@ import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { clockIn, clockOut, overwrites, reset, takeLeave, takeLeaveRange, workFromHome, type Change, type RangeChange } from './actions.ts'
 import { readLog, replaceLog, setDays as saveDays } from './store.ts'
 import { writeSettings, type Settings } from './settings.ts'
-import { color } from './theme.ts'
+import { applyTheme, color, findTheme, themes } from './theme.ts'
 import { selfUpdate } from './update.ts'
-import { Legend, MonthGrid, MonthSummary, Status, YearView } from './views.tsx'
+import { Backdrop, Legend, MonthGrid, MonthSummary, Status, YearView } from './views.tsx'
 
 const pages = ['Today', 'Month', 'Year', 'More'] as const
 
 type Flash = { ok: boolean; text: string } | null
 type Prompt =
   | { kind: 'text'; label: string; initial?: string; onSubmit: (value: string) => void }
-  | { kind: 'choice'; label: string; options: string[]; onPick: (index: number) => void }
+  | {
+      kind: 'choice'
+      label: string
+      options: string[]
+      initial?: number
+      onPick: (index: number) => void
+      // For previews: called as the cursor moves, and on esc.
+      onMove?: (index: number) => void
+      onCancel?: () => void
+    }
   | { kind: 'confirm'; label: string; onYes: () => void }
 
 type PageProps = {
@@ -85,8 +94,12 @@ export function App({
   const [page, setPage] = useState(0)
   const [flash, setFlash] = useState<Flash>(null)
   const [prompt, setPrompt] = useState<Prompt | null>(null)
+  const [prefs, setPrefs] = useState(settings)
+  // The theme on screen; differs from prefs.theme while the picker previews another one.
+  const [painted, setPainted] = useState(settings.theme)
   const seen = useRef('')
-  const [vim, setVim] = useState(settings.vim)
+  const asked = useRef(0)
+  const vim = prefs.vim
   const today = todayKey(now)
 
   // Re-reads the shared file every 2 s, so changes made in the Mac widget show up here.
@@ -133,17 +146,48 @@ export function App({
     write(change.days, change.message)
   }
 
-  // Saved right away, so the next `logbook` starts in the same mode.
-  function toggleVim() {
-    const next = !vim
-    setVim(next)
-    writeSettings(settingsFile, { vim: next }).then(
-      () => setFlash({ ok: true, text: next ? 'Vim keys on: h j k l move, H L switch pages, esc no longer quits.' : 'Vim keys off.' }),
+  // Saved right away, so the next `logbook` starts the same way.
+  function savePrefs(next: Settings, message: string) {
+    setPrefs(next)
+    writeSettings(settingsFile, next).then(
+      () => setFlash({ ok: true, text: message }),
       (error: Error) => setFlash({ ok: false, text: error.message }),
     )
   }
 
-  const props = { days, now, today, vim, apply, applyRange, ask: setPrompt, say: setFlash }
+  function toggleVim() {
+    const next = !vim
+    savePrefs({ ...prefs, vim: next }, next ? 'Vim keys on: h j k l move, H L switch pages, esc no longer quits.' : 'Vim keys off.')
+  }
+
+  function paint(id: string) {
+    applyTheme(id)
+    setPainted(id)
+  }
+
+  // Each theme shows as the cursor reaches it; Enter keeps it, esc goes back to the saved one.
+  function chooseTheme() {
+    ask({
+      kind: 'choice',
+      label: 'Theme',
+      options: themes.map((theme) => theme.name),
+      initial: Math.max(0, themes.findIndex((theme) => theme.id === prefs.theme)),
+      onMove: (index) => paint(themes[index].id),
+      onCancel: () => paint(prefs.theme),
+      onPick: (index) => {
+        paint(themes[index].id)
+        savePrefs({ ...prefs, theme: themes[index].id }, `Theme: ${themes[index].name}.`)
+      },
+    })
+  }
+
+  // A fresh key per prompt, so one prompt opening the next never inherits its typed text or cursor.
+  function ask(next: Prompt) {
+    asked.current += 1
+    setPrompt(next)
+  }
+
+  const props = { days, now, today, vim, apply, applyRange, ask, say: setFlash }
 
   function goTo(index: number) {
     setPage((index + pages.length) % pages.length)
@@ -164,63 +208,122 @@ export function App({
   )
 
   const width = Math.min(columns, 64)
+  const pageKeys: [string, string][] = vim
+    ? [
+        ['H L', 'pages'],
+        ['1-4', 'jump'],
+      ]
+    : [
+        ['tab', 'next'],
+        ['⇧tab', 'back'],
+        ['1-4', 'jump'],
+      ]
 
-  // The panel sits in the middle of the terminal; the outer box fills the whole alternate screen.
+  // The panel sits in the middle of the terminal; the outer box paints the whole alternate screen.
   return (
-    <Box width={columns} height={rows} alignItems="center" justifyContent="center">
-      <Box flexDirection="column" width={width} borderStyle="round" borderColor={color.line} paddingX={2} paddingY={1}>
-        <Box justifyContent="space-between">
-          <Text color={color.office} bold>
-            ◆ Logbook
-          </Text>
-          <Box gap={2}>
-            {pages.map((name, index) => (
-              <Text key={name} color={index === page ? color.office : color.faint} bold={index === page} underline={index === page}>
-                {name}
+    <Backdrop.Provider value={color.panel}>
+      <Box width={columns} height={rows} alignItems="center" justifyContent="center" backgroundColor={color.bg}>
+        <Box
+          flexDirection="column"
+          width={width}
+          borderStyle="round"
+          borderColor={color.line}
+          borderBackgroundColor={color.panel}
+          backgroundColor={color.panel}
+          paddingX={2}
+        >
+          <Box justifyContent="space-between">
+            <Text color={color.accent} bold>
+              ◆ Logbook
+            </Text>
+            <Box>
+              {pages.map((name, index) => (
+                <Text
+                  key={name}
+                  backgroundColor={index === page ? color.accent : undefined}
+                  color={index === page ? color.ink : color.muted}
+                  bold={index === page}
+                >
+                  {` ${name} `}
+                </Text>
+              ))}
+            </Box>
+          </Box>
+          <Rule width={width - 6} top={0} bottom={1} />
+          <Box minHeight={14} flexDirection="column">
+            {loadError ? <Text color={color.danger}>{loadError}</Text> : null}
+            {page === 0 ? <TodayPage {...props} active={!prompt} /> : null}
+            {page === 1 ? <MonthPage {...props} active={!prompt} goToday={() => goTo(0)} /> : null}
+            {page === 2 ? <YearPage {...props} active={!prompt} /> : null}
+            {page === 3 ? (
+              <MorePage
+                {...props}
+                active={!prompt}
+                file={file}
+                version={version}
+                update={update}
+                theme={painted}
+                toggleVim={toggleVim}
+                chooseTheme={chooseTheme}
+              />
+            ) : null}
+          </Box>
+          {prompt ? <PromptView key={asked.current} prompt={prompt} vim={vim} close={() => setPrompt(null)} /> : null}
+          {flash ? (
+            <Box marginTop={1}>
+              <Text color={flash.ok ? color.success : color.danger} bold>
+                {flash.ok ? '✓' : '✗'}{' '}
               </Text>
-            ))}
+              <Text color={flash.ok ? color.text : color.danger}>{flash.text}</Text>
+            </Box>
+          ) : null}
+          {update ? (
+            <Text color={color.accent}>
+              ↑ Logbook {update} is available ({version} installed). Run <Text bold>logbook update</Text>.
+            </Text>
+          ) : null}
+          <Rule width={width - 6} top={1} bottom={0} />
+          <Box justifyContent="space-between">
+            <Keys items={pageKeys} />
+            <Keys items={[['q', 'quit']]} />
           </Box>
         </Box>
-        <Box marginTop={1} minHeight={14} flexDirection="column">
-          {loadError ? <Text color={color.danger}>{loadError}</Text> : null}
-          {page === 0 ? <TodayPage {...props} active={!prompt} /> : null}
-          {page === 1 ? <MonthPage {...props} active={!prompt} goToday={() => goTo(0)} /> : null}
-          {page === 2 ? <YearPage {...props} active={!prompt} /> : null}
-          {page === 3 ? (
-            <MorePage {...props} active={!prompt} file={file} version={version} update={update} toggleVim={toggleVim} />
-          ) : null}
-        </Box>
-        {prompt ? <PromptView prompt={prompt} vim={vim} close={() => setPrompt(null)} /> : null}
-        {flash ? (
-          <Text color={flash.ok ? color.success : color.danger}>
-            {flash.ok ? '✓' : '✗'} {flash.text}
-          </Text>
-        ) : null}
-        {update ? (
-          <Text color={color.office}>
-            ↑ Logbook {update} is available ({version} installed). Run <Text bold>logbook update</Text>.
-          </Text>
-        ) : null}
-        <Box marginTop={1} justifyContent="space-between">
-          <Text color={color.faint}>{vim ? 'H L · tab · 1-4 pages' : 'tab · shift+tab · 1-4 pages'}</Text>
-          <Text color={color.faint}>q quit</Text>
-        </Box>
       </Box>
+    </Backdrop.Provider>
+  )
+}
+
+// A divider across the panel's inside (its width less border and padding).
+function Rule({ width, top, bottom }: { width: number; top: number; bottom: number }) {
+  return (
+    <Box marginTop={top} marginBottom={bottom}>
+      <Text color={color.line}>{'─'.repeat(Math.max(0, width))}</Text>
     </Box>
   )
 }
 
+// Key caps on a raised surface, then what they do.
 function Keys({ items }: { items: [string, string][] }) {
   return (
-    <Box marginTop={1} flexWrap="wrap" columnGap={2}>
+    <Box flexWrap="wrap" columnGap={2}>
       {items.map(([key, label]) => (
-        <Text key={key} color={color.muted}>
-          <Text color={color.office} bold>
-            {key}
-          </Text>{' '}
-          {label}
-        </Text>
+        <Box key={key} gap={1}>
+          <Text backgroundColor={color.surface} color={color.accent} bold>
+            {` ${key} `}
+          </Text>
+          <Text color={color.muted}>{label}</Text>
+        </Box>
       ))}
+    </Box>
+  )
+}
+
+// A page's own keys, under its content. Hidden while a prompt is open, since they do nothing then and the space is needed.
+function PageKeys({ items, active }: { items: [string, string][]; active: boolean }) {
+  if (!active) return null
+  return (
+    <Box marginTop={1}>
+      <Keys items={items} />
     </Box>
   )
 }
@@ -296,7 +399,11 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
   return (
     <Box flexDirection="column">
       <Status day={day} now={now} today={today} />
-      <Keys items={keys} />
+      <Box marginTop={1} gap={1}>
+        <Text color={color.faint}>This month</Text>
+        <MonthSummary days={days} year={Number(today.slice(0, 4))} month={Number(today.slice(5, 7)) - 1} today={today} />
+      </Box>
+      <PageKeys items={keys} active={active} />
     </Box>
   )
 }
@@ -404,7 +511,7 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
         ]
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold color={color.text}>
+      <Text bold color={color.accent}>
         {new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
       </Text>
       <MonthGrid days={days} year={year} month={month} today={today} selected={selected} planned={planned} />
@@ -430,7 +537,7 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
           <MonthSummary days={days} year={year} month={month} today={today} />
         </Box>
       )}
-      <Keys items={keys} />
+      <PageKeys items={keys} active={active} />
     </Box>
   )
 }
@@ -450,7 +557,8 @@ function YearPage({ days, today, active, vim }: PageProps) {
   return (
     <Box flexDirection="column">
       <YearView days={days} year={year} today={today} />
-      <Keys
+      <PageKeys
+        active={active}
         items={[
           [vim ? 'h l' : '← →', 'year'],
           ['t', 'this year'],
@@ -476,8 +584,17 @@ function MorePage({
   file,
   version,
   update,
+  theme,
   toggleVim,
-}: PageProps & { file: string; version: string; update: string | null; toggleVim: () => void }) {
+  chooseTheme,
+}: PageProps & {
+  file: string
+  version: string
+  update: string | null
+  theme: string
+  toggleVim: () => void
+  chooseTheme: () => void
+}) {
   const [cursor, setCursor] = useState(0)
   const year = Number(today.slice(0, 4))
   const month = Number(today.slice(5, 7)) - 1
@@ -494,12 +611,15 @@ function MorePage({
     }
   }
 
-  const actions: { label: string; run: () => void }[] = [
+  type Action = { section: string; label: string; value?: string; danger?: boolean; run: () => void }
+  const actions: Action[] = [
     {
+      section: 'Export',
       label: `Excel: ${today.slice(0, 7)}`,
       run: () => void save(`logbook-${today.slice(0, 7)}.xlsx`, toXlsx([excelMonthSheet(days, year, month, today)]), 'the month'),
     },
     {
+      section: 'Export',
       label: `Excel: ${year}`,
       run: () =>
         void save(`logbook-${year}.xlsx`, toXlsx(excelSheets(days, { from: year, years: 1, weekends: true, split: true }, today)), 'the year'),
@@ -508,6 +628,7 @@ function MorePage({
     ...(from < year
       ? [
           {
+            section: 'Export',
             label: `Excel: ${from}–${year}, a sheet per year`,
             run: () =>
               void save(
@@ -518,8 +639,13 @@ function MorePage({
           },
         ]
       : []),
-    { label: 'Save backup (JSON)', run: () => void save(`logbook-backup-${today}.json`, JSON.stringify(days), 'the backup') },
     {
+      section: 'Data',
+      label: 'Save backup (JSON)',
+      run: () => void save(`logbook-backup-${today}.json`, JSON.stringify(days), 'the backup'),
+    },
+    {
+      section: 'Data',
       label: 'Restore from a backup file',
       run: () =>
         ask({
@@ -554,7 +680,9 @@ function MorePage({
     },
     {
       // The widget shares this log, so erasing here empties it too; typing the word keeps a stray Enter from doing it.
+      section: 'Data',
       label: 'Erase all data',
+      danger: true,
       run: () => {
         const count = Object.keys(days).length
         if (count === 0) return say({ ok: true, text: 'The log is already empty.' })
@@ -571,9 +699,12 @@ function MorePage({
         })
       },
     },
-    { label: `Vim keys: ${vim ? 'on' : 'off'}`, run: toggleVim },
+    { section: 'Preferences', label: 'Theme', value: findTheme(theme)?.name, run: chooseTheme },
+    { section: 'Preferences', label: 'Vim keys', value: vim ? 'on' : 'off', run: toggleVim },
     {
+      section: 'App',
       label: update ? `Update to ${update}` : 'Check for updates',
+      value: `v${version}`,
       run: () => {
         say({ ok: true, text: 'Checking GitHub…' })
         selfUpdate(version).then(
@@ -596,17 +727,34 @@ function MorePage({
 
   return (
     <Box flexDirection="column">
-      {actions.map((action, index) => (
-        <Text key={action.label} color={index === cursor ? color.office : color.text} bold={index === cursor}>
-          {index === cursor ? '› ' : '  '}
-          {action.label}
+      {actions.map((action, index) => {
+        const selected = index === cursor
+        return (
+          <Box key={action.label} flexDirection="column">
+            {action.section !== actions[index - 1]?.section ? (
+              <Box marginTop={index === 0 ? 0 : 1}>
+                <Text color={color.faint} bold>
+                  {action.section.toUpperCase()}
+                </Text>
+              </Box>
+            ) : null}
+            <Box justifyContent="space-between" backgroundColor={selected ? color.surface : undefined} paddingRight={1}>
+              <Text color={action.danger ? color.danger : selected ? color.accent : color.text} bold={selected}>
+                <Text color={color.accent}>{selected ? '▌ ' : '  '}</Text>
+                {action.label}
+              </Text>
+              {action.value ? <Text color={selected ? color.text : color.muted}>{action.value}</Text> : null}
+            </Box>
+          </Box>
+        )
+      })}
+      <Box marginTop={1}>
+        <Text color={color.faint} wrap="truncate-middle">
+          Log {file}
         </Text>
-      ))}
-      <Box marginTop={1} flexDirection="column">
-        <Text color={color.faint}>Log: {file}</Text>
-        <Text color={color.faint}>Logbook CLI {version}</Text>
       </Box>
-      <Keys
+      <PageKeys
+        active={active}
         items={[
           [vim ? 'j k' : '↑↓', 'choose'],
           ['enter', 'run'],
@@ -616,11 +764,18 @@ function MorePage({
   )
 }
 
+// Long lists, such as themes, scroll so a prompt never pushes the panel off a small terminal.
+const promptRows = 6
+
 function PromptView({ prompt, vim, close }: { prompt: Prompt; vim: boolean; close: () => void }) {
+  const backdrop = useContext(Backdrop)
   const [value, setValue] = useState(prompt.kind === 'text' ? (prompt.initial ?? '') : '')
-  const [cursor, setCursor] = useState(0)
+  const [cursor, setCursor] = useState(prompt.kind === 'choice' ? (prompt.initial ?? 0) : 0)
   useInput((input, key) => {
-    if (key.escape) return close()
+    if (key.escape) {
+      if (prompt.kind === 'choice') prompt.onCancel?.()
+      return close()
+    }
     if (prompt.kind === 'confirm') {
       if (input === 'y') {
         close()
@@ -628,24 +783,42 @@ function PromptView({ prompt, vim, close }: { prompt: Prompt; vim: boolean; clos
       } else if (input === 'n') close()
     }
     if (prompt.kind === 'choice') {
+      const count = prompt.options.length
       const move = moveOf(input, key, vim)
-      if (move === 'up') setCursor((cursor + prompt.options.length - 1) % prompt.options.length)
-      if (move === 'down') setCursor((cursor + 1) % prompt.options.length)
-      const picked = Number(input) - 1
-      if (key.return || (picked >= 0 && picked < prompt.options.length)) {
+      if (move === 'up' || move === 'down') {
+        const next = (cursor + (move === 'up' ? count - 1 : 1)) % count
+        setCursor(next)
+        prompt.onMove?.(next)
+      }
+      // Number keys pick straight away when every option has one.
+      const picked = count <= 9 ? Number(input) - 1 : -1
+      if (key.return || (picked >= 0 && picked < count)) {
         close()
         prompt.onPick(key.return ? cursor : picked)
       }
     }
   })
+  const options = prompt.kind === 'choice' ? prompt.options : []
+  const start = Math.max(0, Math.min(cursor - Math.floor(promptRows / 2), options.length - promptRows))
+  const shown = options.slice(start, start + promptRows)
+  const hint =
+    prompt.kind === 'confirm' ? 'y yes · n no' : prompt.kind === 'choice' ? `${vim ? 'j k' : '↑↓'} choose · enter pick · esc cancel` : 'enter ok · esc cancel'
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={color.office} paddingX={1} marginTop={1}>
-      <Text color={color.office} bold>
+    <Box
+      flexDirection="column"
+      borderStyle="round"
+      borderColor={color.accent}
+      borderBackgroundColor={backdrop}
+      backgroundColor={color.surface}
+      paddingX={1}
+      marginTop={1}
+    >
+      <Text color={color.accent} bold>
         {prompt.label}
       </Text>
       {prompt.kind === 'text' ? (
-        <Box>
-          <Text color={color.muted}>› </Text>
+        <Box marginTop={1}>
+          <Text color={color.accent}>› </Text>
           <TextInput
             value={value}
             onChange={setValue}
@@ -656,15 +829,26 @@ function PromptView({ prompt, vim, close }: { prompt: Prompt; vim: boolean; clos
           />
         </Box>
       ) : null}
-      {prompt.kind === 'choice'
-        ? prompt.options.map((option, index) => (
-            <Text key={option} color={index === cursor ? color.leave : color.text}>
-              {index === cursor ? '› ' : '  '}
-              {index + 1}. {option}
-            </Text>
-          ))
-        : null}
-      <Text color={color.faint}>{prompt.kind === 'confirm' ? 'y yes · n no' : 'esc cancel'}</Text>
+      {prompt.kind === 'choice' ? (
+        <Box flexDirection="column">
+          {start > 0 ? <Text color={color.faint}> ↑ {start} more</Text> : null}
+          {shown.map((option, offset) => {
+            const index = start + offset
+            const selected = index === cursor
+            return (
+              <Text key={option} color={selected ? color.accent : color.text} bold={selected}>
+                {selected ? '▌ ' : '  '}
+                {options.length <= 9 ? <Text color={color.faint}>{index + 1} </Text> : null}
+                {option}
+              </Text>
+            )
+          })}
+          {start + promptRows < options.length ? <Text color={color.faint}> ↓ {options.length - start - promptRows} more</Text> : null}
+        </Box>
+      ) : null}
+      <Box marginTop={1}>
+        <Text color={color.faint}>{hint}</Text>
+      </Box>
     </Box>
   )
 }

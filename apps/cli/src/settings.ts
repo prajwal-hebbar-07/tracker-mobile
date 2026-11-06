@@ -1,18 +1,24 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { defaultTheme, findTheme } from './theme.ts'
 
-export type Settings = { vim: boolean }
+export type Settings = { vim: boolean; theme: string }
 
-const defaults: Settings = { vim: false }
+const defaults: Settings = { vim: false, theme: defaultTheme }
 
 // A missing or unreadable file means the defaults, so a broken preferences file never stops the CLI from starting.
+// Each field falls back on its own, and a theme this version does not know becomes the default.
 export async function readSettings(file: string): Promise<Settings> {
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(await readFile(file, 'utf8'))
-    const vim = (parsed as { vim?: unknown } | null)?.vim
-    return { vim: typeof vim === 'boolean' ? vim : defaults.vim }
+    parsed = JSON.parse(await readFile(file, 'utf8'))
   } catch {
     return { ...defaults }
+  }
+  const { vim, theme } = (parsed ?? {}) as { vim?: unknown; theme?: unknown }
+  return {
+    vim: typeof vim === 'boolean' ? vim : defaults.vim,
+    theme: typeof theme === 'string' && findTheme(theme) ? theme : defaults.theme,
   }
 }
 

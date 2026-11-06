@@ -23,7 +23,7 @@ import { App } from './App.tsx'
 import { logFile, settingsFile } from './paths.ts'
 import { readSettings } from './settings.ts'
 import { readLog, replaceLog, setDay, setDays } from './store.ts'
-import { color } from './theme.ts'
+import { applyTheme, color } from './theme.ts'
 import { pendingUpdate, refreshCache, selfUpdate } from './update.ts'
 import { MonthView, Status, YearView } from './views.tsx'
 
@@ -89,6 +89,10 @@ async function change(file: string, date: string, decide: (days: Days) => Change
 
 async function run(argv: string[]) {
   const file = logFile()
+  // One-shot output uses the saved theme's colours too; only the interactive view paints a background.
+  const prefsFile = settingsFile()
+  const prefs = await readSettings(prefsFile)
+  applyTheme(prefs.theme)
   const now = new Date()
   const today = todayKey(now)
   const { values, positionals } = parseArgs({
@@ -119,9 +123,8 @@ async function run(argv: string[]) {
   switch (command) {
     case '': {
       if (!process.stdin.isTTY || !process.stdout.isTTY) return run(['status'])
-      const settings = settingsFile()
       const app = render(
-        <App file={file} settingsFile={settings} settings={await readSettings(settings)} version={version} update={await pendingUpdate(version)} />,
+        <App file={file} settingsFile={prefsFile} settings={prefs} version={version} update={await pendingUpdate(version)} />,
         { alternateScreen: true },
       )
       return app.waitUntilExit()

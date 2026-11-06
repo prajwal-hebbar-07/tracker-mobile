@@ -13,10 +13,24 @@ import {
   type Day,
   type Days,
 } from '@logbook/core'
-import { Box, Text } from 'ink'
-import { color, kindMeta, toneColor } from './theme.ts'
+import { Box, Text, type BoxProps } from 'ink'
+import { createContext, useContext, type ReactNode } from 'react'
+import { color, kindGlyph, toneColor } from './theme.ts'
 
 // Shared by the interactive view and the one-shot commands, so both look the same.
+
+// The colour behind the views. The interactive panel paints one; one-shot output leaves the terminal's own.
+// Ink does not carry a parent's background into a nested border, so cards read it from here.
+export const Backdrop = createContext<string | undefined>(undefined)
+
+export function Card({ tint, children, ...props }: BoxProps & { tint?: string; children: ReactNode }) {
+  const backdrop = useContext(Backdrop)
+  return (
+    <Box flexDirection="column" borderStyle="round" borderColor={tint ?? color.line} borderBackgroundColor={backdrop} paddingX={2} {...props}>
+      {children}
+    </Box>
+  )
+}
 
 export function Status({ day, now, today }: { day?: Day; now: Date; today: string }) {
   const office = day?.kind === 'office' ? day : null
@@ -25,42 +39,51 @@ export function Status({ day, now, today }: { day?: Day; now: Date; today: strin
   const status = !day
     ? { glyph: '○', tint: color.muted, title: 'Not logged yet', sub: 'Clock in, work from home, or take leave' }
     : day.kind === 'wfh'
-      ? { ...kindMeta.wfh, title: 'Working from home', sub: 'Counts as a worked day' }
+      ? { glyph: kindGlyph.wfh, tint: color.wfh, title: 'Working from home', sub: 'Counts as a worked day' }
       : day.kind === 'leave'
-        ? { ...kindMeta.leave, title: leaveLabel(day.leaveType), sub: day.note ?? 'On leave today' }
+        ? { glyph: kindGlyph.leave, tint: color.leave, title: leaveLabel(day.leaveType), sub: day.note ?? 'On leave today' }
         : {
-            ...kindMeta.office,
+            glyph: kindGlyph.office,
+            tint: color.office,
             title: open ? 'Clocked in' : day.out ? 'Clocked out' : 'In office',
             sub: open ? 'Timer is running' : day.out ? 'Day complete' : 'Not clocked in yet',
           }
   return (
     <Box flexDirection="column">
-      <Text color={color.faint}>{formatLong(today)}</Text>
-      <Box gap={2} marginTop={1}>
-        <Text color={status.tint} bold>
-          {status.glyph} {status.title}
-        </Text>
-        {minutes != null ? (
-          <Text color={color.text} bold>
-            {formatMinutes(minutes)}
+      <Text color={color.muted} bold>
+        {formatLong(today)}
+      </Text>
+      <Card tint={status.tint} marginTop={1}>
+        <Box justifyContent="space-between" gap={2}>
+          <Text color={status.tint} bold>
+            {status.glyph} {status.title}
           </Text>
-        ) : null}
-      </Box>
-      <Text color={color.muted}>{status.sub}</Text>
-      {office?.in ? (
-        <Box gap={3} marginTop={1}>
-          <Text>
-            <Text color={color.faint}>IN </Text>
-            <Text color={color.text}>{office.in}</Text>
-          </Text>
-          {office.out ? (
-            <Text>
-              <Text color={color.faint}>OUT </Text>
-              <Text color={color.text}>{office.out}</Text>
+          {minutes != null ? (
+            <Text color={color.text} bold>
+              {formatMinutes(minutes)}
             </Text>
           ) : null}
         </Box>
-      ) : null}
+        <Text color={color.muted}>{status.sub}</Text>
+        {office?.in ? (
+          <Box gap={3} marginTop={1}>
+            <Text>
+              <Text color={color.faint}>IN </Text>
+              <Text color={color.text} bold>
+                {office.in}
+              </Text>
+            </Text>
+            {office.out ? (
+              <Text>
+                <Text color={color.faint}>OUT </Text>
+                <Text color={color.text} bold>
+                  {office.out}
+                </Text>
+              </Text>
+            ) : null}
+          </Box>
+        ) : null}
+      </Card>
     </Box>
   )
 }
@@ -103,15 +126,17 @@ export function MonthGrid({
             const kind = tone(days[date] ?? null)
             const future = date > today && kind === 'none'
             const filled = !future
-            const ink = kind === 'office' || kind === 'wfh' ? color.ink : future ? color.faint : color.text
+            const ink = kind === 'office' || kind === 'wfh' || kind === 'leave' ? color.ink : future ? color.faint : color.text
             const marker = date === selected ? '›' : planned.includes(date) ? '•' : ' '
             const label = String(Number(date.slice(8))).padStart(2, ' ')
             return (
               <Box key={date} width={5}>
-                <Text color={date === selected ? color.office : color.leave}>{marker}</Text>
+                <Text color={date === selected ? color.accent : color.leave} bold>
+                  {marker}
+                </Text>
                 <Text
                   backgroundColor={filled ? toneColor[kind] : undefined}
-                  color={date === today ? color.office : ink}
+                  color={date === today && kind === 'none' ? color.accent : ink}
                   bold={date === today || date === selected}
                   underline={date === today}
                 >
@@ -158,7 +183,7 @@ export function MonthSummary({ days, year, month, today }: { days: Days; year: n
 export function MonthView({ days, year, month, today }: { days: Days; year: number; month: number; today: string }) {
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold color={color.text}>
+      <Text bold color={color.accent}>
         {formatMonth(year, month)}
       </Text>
       <MonthGrid days={days} year={year} month={month} today={today} />
@@ -191,17 +216,17 @@ export function YearView({ days, year, today }: { days: Days; year: number; toda
   ] as const
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold color={color.text}>
+      <Text bold color={color.accent}>
         {year}
       </Text>
-      <Box gap={4}>
+      <Box gap={1}>
         {totals.map(([label, value, tint]) => (
-          <Box key={label} flexDirection="column" alignItems="center">
+          <Card key={label} width={12} alignItems="center" paddingX={0}>
             <Text color={tint} bold>
               {value}
             </Text>
             <Text color={color.muted}>{label}</Text>
-          </Box>
+          </Card>
         ))}
       </Box>
       <Text color={color.faint}>
@@ -232,7 +257,7 @@ function Row({ cells, head = false }: { cells: string[]; head?: boolean }) {
     <Box>
       {cells.map((cell, index) => (
         <Box key={index} width={widths[index]} justifyContent={index === 0 ? 'flex-start' : 'flex-end'}>
-          <Text color={head ? color.faint : color.text} bold={head}>
+          <Text color={head ? color.faint : index === 0 ? color.muted : color.text} bold={head}>
             {cell}
           </Text>
         </Box>
