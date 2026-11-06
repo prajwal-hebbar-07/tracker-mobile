@@ -1,6 +1,6 @@
 # Logbook
 
-Personal attendance and leave log for one Android phone, dark theme only. The log stays on the phone.
+Personal attendance and leave log, dark theme only: an Android app, plus a Mac desktop widget. Each keeps its own log on its own device; move it between them with a JSON backup.
 
 - **Today**: clock in, clock out, work from home or leave, for today only. **Leave** asks for the type and an optional note, then **Save leave** records it. Once clocked in, the clock-in time shows on the card with **Edit time**; after clock-out both times do. **Start over** clears today so you can choose again.
 - **Calendar**: a month at a glance. Tap another date to see what was logged or to mark it as leave. **Share month** sends a readable list of every day; **Share month as Excel** sends the same workbook as the Report export, with one row for each day of that month.
@@ -14,6 +14,7 @@ An npm workspaces monorepo, so other Logbook apps can share the same logic:
 | Path | Package | What it is |
 | --- | --- | --- |
 | `apps/mobile` | `@logbook/mobile` | The Expo app: screens, storage, sharing, `app.json`, `eas.json` |
+| `apps/desktop` | `@logbook/desktop` | The Mac widget: Tauri (`src-tauri/`) around a React page (`src/`) |
 | `packages/core` | `@logbook/core` | Platform-free logic: dates, summaries, leave spans, reports, CSV and Excel export, and its tests |
 
 `@logbook/core` has no React, storage or native code, so any JavaScript app can import it. A new app goes in `apps/<name>` and adds `"@logbook/core": "*"` to its dependencies.
@@ -28,11 +29,28 @@ npm test             # core tests
 npm run typecheck    # every workspace
 npm run lint         # every workspace
 npm start            # Expo dev server for apps/mobile
+npm run widget       # Mac widget in development (needs Rust: rustup.rs)
+npm run widget:build # Logbook Widget.app and a .dmg in apps/desktop/src-tauri/target/release/bundle/
 ```
 
 Run Expo and EAS commands from `apps/mobile` (`cd apps/mobile && npx expo install <package>`).
 
 Open the project in Expo Go. This SDK matches the Expo Go app during the SDK 58 transition. Expo Go loads the project from your computer. It does not download releases, and its saved days are separate from an installed build.
+
+## Mac widget
+
+A small glass panel that sits on the desktop behind other windows, shows on every Space, and has no Dock icon. Drag it by its title to move it; it remembers where you put it. Swipe sideways on the trackpad, click the dots, or press ← → to change page:
+
+- **Today**: clock in, clock out, work from home or leave, with a live timer and editable times.
+- **Month**: the calendar heatmap. Click a past or future day to mark, edit or remove leave; click today to jump back to Today.
+- **Year**: totals, leave by type, and the month-by-month table.
+- **More**: Excel for this month, this year or every year (the same workbook as the phone); save or copy a backup; restore from a backup file or pasted text; Quit.
+
+The log is `~/Library/Application Support/works.oni.logbook.widget/days.json`. To move the phone's log to the Mac, use **Share backup (JSON)** on the phone, then **Restore** on the widget; **Copy** on the widget and **Restore from backup** on the phone go the other way.
+
+Install: run `npm run widget:build`, open the `.dmg` and drag **Logbook Widget** to Applications. It is ad-hoc signed, not notarized, so a copy downloaded from elsewhere needs right-click → **Open** the first time. To start it at login, add it in System Settings → General → Login Items.
+
+`npm run web -w @logbook/desktop` opens the same page in a browser for layout work; there the log lives in localStorage and saving downloads the file.
 
 ## Release and update the app
 
