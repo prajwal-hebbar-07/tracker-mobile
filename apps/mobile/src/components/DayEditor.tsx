@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { useDialog } from '@/components/Dialog'
 import { LeaveForm } from '@/components/LeaveForm'
 import { Button, Icon, text } from '@/components/ui'
-import { describeDay, type Day, type LeaveType } from '@/logic'
+import { describeDay, type Day, type LeaveType } from '@logbook/core'
 import { color, kindMeta, radius } from '@/theme'
 
 // Days other than today only take leave. Office and home days are logged live from Today, so here they are read-only.

@@ -5,7 +5,7 @@ import { ExcelExport } from '@/components/ExcelExport'
 import { LeaveList } from '@/components/LeaveList'
 import { Screen } from '@/components/Screen'
 import { Button, PeriodNav, Section, text } from '@/components/ui'
-import { addDays, formatMinutes, leaveCounts, leaveTypes, summarize, todayKey, yearReport } from '@/logic'
+import { addDays, formatMinutes, leaveCounts, leaveTypes, summarize, todayKey, yearReport } from '@logbook/core'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { cleanDay, cleanDays, isDateKey, type Day, type Days } from '@/logic'
+import { cleanDay, cleanDays, isDateKey, type Day, type Days } from '@logbook/core'
 
 const KEY = 'logbook.days.v1'
 

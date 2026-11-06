@@ -1,5 +1,5 @@
 import type { MaterialDesignIconsIconName } from '@react-native-vector-icons/material-design-icons'
-import type { Kind, LeaveType, Tone } from '@/logic'
+import type { Kind, LeaveType, Tone } from '@logbook/core'
 
 export type IconName = MaterialDesignIconsIconName
 

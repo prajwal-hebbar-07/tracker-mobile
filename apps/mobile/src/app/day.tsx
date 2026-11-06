@@ -4,7 +4,7 @@ import { DayEditor } from '@/components/DayEditor'
 import { Screen } from '@/components/Screen'
 import { TodayCard } from '@/components/TodayCard'
 import { IconButton } from '@/components/ui'
-import { addDays, isDateKey, parseDateKey, todayKey } from '@/logic'
+import { addDays, isDateKey, parseDateKey, todayKey } from '@logbook/core'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 

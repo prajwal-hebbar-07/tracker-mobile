@@ -3,10 +3,19 @@ import * as Sharing from 'expo-sharing'
 import { useMemo, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Button, Chip, IconButton, text } from '@/components/ui'
-import { excelLabel, excelSheets, maxExcelYears, plural, todayKey, type ExcelOptions } from '@/logic'
+import {
+  excelLabel,
+  excelSheets,
+  maxExcelYears,
+  plural,
+  todayKey,
+  toXlsx,
+  xlsxMime,
+  type ExcelOptions,
+  type Sheet,
+} from '@logbook/core'
 import { useDays } from '@/store'
 import { color } from '@/theme'
-import { toXlsx, xlsxMime, type Sheet } from '@/xlsx'
 
 // Writes the workbook to the cache folder and opens the share sheet. `label` names the file, e.g. 2024–2026.
 export async function shareXlsx(sheets: Sheet[], label: string): Promise<void> {

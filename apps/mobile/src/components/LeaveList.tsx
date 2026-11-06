@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useDialog } from '@/components/Dialog'
 import { IconButton, text } from '@/components/ui'
-import { eachDate, formatRange, leaveLabel, leaveSpans, plural, type LeaveSpan } from '@/logic'
+import { eachDate, formatRange, leaveLabel, leaveSpans, plural, type LeaveSpan } from '@logbook/core'
 import { useDays } from '@/store'
 import { color } from '@/theme'
 

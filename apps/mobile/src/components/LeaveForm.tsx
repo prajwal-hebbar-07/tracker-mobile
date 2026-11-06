@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { Button, Chip, text } from '@/components/ui'
-import { leaveTypes, type LeaveType } from '@/logic'
+import { leaveTypes, type LeaveType } from '@logbook/core'
 import { color, leaveIcon, radius } from '@/theme'
 
 // Pick a type, optionally add a note, then Save. Nothing is recorded until Save.

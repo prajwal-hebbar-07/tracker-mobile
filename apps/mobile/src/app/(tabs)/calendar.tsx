@@ -5,7 +5,7 @@ import { shareXlsx } from '@/components/ExcelExport'
 import { Legend, MonthHeat } from '@/components/MonthHeat'
 import { Screen } from '@/components/Screen'
 import { Button, PeriodNav, text } from '@/components/ui'
-import { excelMonthSheet, formatMinutes, formatMonth, monthReport, summarize, todayKey } from '@/logic'
+import { excelMonthSheet, formatMinutes, formatMonth, monthReport, summarize, todayKey } from '@logbook/core'
 import { useDays } from '@/store'
 
 export default function CalendarScreen() {

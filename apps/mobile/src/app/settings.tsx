@@ -5,7 +5,7 @@ import { Share, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useDialog } from '@/components/Dialog'
 import { Screen } from '@/components/Screen'
 import { Button, Section, text } from '@/components/ui'
-import { cleanDays, formatLong, plural, toCsv, type Days } from '@/logic'
+import { cleanDays, formatLong, plural, toCsv, type Days } from '@logbook/core'
 import { useDays } from '@/store'
 import { color, radius } from '@/theme'
 

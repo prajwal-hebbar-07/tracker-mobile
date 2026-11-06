@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router'
 import { LeaveApply } from '@/components/LeaveApply'
-import { isDateKey, todayKey } from '@/logic'
+import { isDateKey, todayKey } from '@logbook/core'
 
 export default function ApplyLeaveScreen() {
   const params = useLocalSearchParams<{ from?: string }>()

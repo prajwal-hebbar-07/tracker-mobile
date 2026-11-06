@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Button, Icon, IconButton } from '@/components/ui'
-import { timeNow } from '@/logic'
+import { timeNow } from '@logbook/core'
 import { color, radius } from '@/theme'
 
 const hours = Array.from({ length: 24 }, (_, hour) => hour)

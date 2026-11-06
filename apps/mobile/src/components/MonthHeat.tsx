@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { formatLong, monthCells, todayKey, tone, type Days, type Tone } from '@/logic'
+import { formatLong, monthCells, todayKey, tone, type Days, type Tone } from '@logbook/core'
 import { color, inkFor, toneColor } from '@/theme'
 
 const dow = ['M', 'T', 'W', 'T', 'F', 'S', 'S']

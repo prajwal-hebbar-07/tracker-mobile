@@ -1,10 +1,17 @@
 name: Release
 
-# Push to main: publish an over-the-air update (JavaScript and assets) to installed APKs.
+# Push to main that touches the mobile app or shared code: publish an over-the-air update to installed APKs.
 # Actions → Release → Run workflow: pick what to release from the dropdown.
+# Dependencies install at the repo root (npm workspaces); EAS commands run from apps/mobile.
 on:
   push:
     branches: [main]
+    paths:
+      - apps/mobile/**
+      - packages/core/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
       release:
@@ -63,6 +70,7 @@ jobs:
 
       - name: Publish update
         if: steps.token.outputs.has == 'true'
+        working-directory: apps/mobile
         env:
           MESSAGE: ${{ github.event.head_commit.message || 'Update from GitHub' }}
         run: eas update --channel preview --environment preview --non-interactive --message "$MESSAGE"
@@ -104,10 +112,12 @@ jobs:
       # Signed with the keystore EAS keeps for this app, so each APK installs over the last one.
       # versionCode goes up by one on every build (remote version source in eas.json).
       - name: Build APK on EAS
+        working-directory: apps/mobile
         run: eas build --platform android --profile preview --non-interactive --wait --json --message "Release from ${GITHUB_SHA::7}" > build.json
 
       - name: Download APK
         id: apk
+        working-directory: apps/mobile
         run: |
           version=$(jq -r '.[0].appVersion' build.json)
           code=$(jq -r '.[0].appBuildVersion' build.json)
@@ -127,6 +137,7 @@ jobs:
           VERSION: ${{ steps.apk.outputs.version }}
           CODE: ${{ steps.apk.outputs.code }}
           FILE: ${{ steps.apk.outputs.file }}
+        working-directory: apps/mobile
         run: |
           if [ -n "$NOTES" ]; then notes=(--notes "$NOTES"); else notes=(--generate-notes); fi
           gh release create "v$VERSION-$CODE" "$FILE" \

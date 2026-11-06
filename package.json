@@ -1,37 +1,14 @@
 {
-  "name": "tracker-mobile",
-  "version": "1.0.0",
-  "main": "expo-router/entry",
-  "dependencies": {
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-native-vector-icons/material-design-icons": "^14.0.0",
-    "expo": "^58.0.0",
-    "expo-constants": "~58.0.15",
-    "expo-file-system": "~58.0.13",
-    "expo-font": "~58.0.11",
-    "expo-linking": "~58.0.16",
-    "expo-router": "~58.0.30",
-    "expo-sharing": "~58.0.22",
-    "expo-status-bar": "~58.0.4",
-    "expo-updates": "~58.0.21",
-    "react": "19.3.0",
-    "react-native": "0.88.1",
-    "react-native-safe-area-context": "~5.11.1",
-    "react-native-screens": "~4.30.1"
-  },
-  "devDependencies": {
-    "@types/react": "~19.3.0",
-    "eslint": "^9.0.0",
-    "eslint-config-expo": "~58.0.4",
-    "typescript": "~6.0.3"
-  },
+  "name": "logbook",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/logic.test.ts",
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "expo lint"
-  },
-  "private": true
+    "start": "npm run start -w @logbook/mobile",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  }
 }

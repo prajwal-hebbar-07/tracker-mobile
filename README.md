@@ -7,13 +7,30 @@ Personal attendance and leave log for one Android phone, dark theme only. The lo
 - **Report**: the year in one place. Totals, a month-by-month table, leave by type with dates and notes. **Plan leave in advance** books a range of future days; weekends are skipped unless you turn on **Count weekends**. Remove leave from the list here. **Share the report** sends the year as text, or as an Excel workbook with one row for every calendar day: pick the first year and how many years, whether empty weekends are listed, and one sheet per year or a single sheet.
 - **Settings** (gear icon): export as CSV or JSON, restore a backup, check for an update.
 
+## Repository layout
+
+An npm workspaces monorepo, so other Logbook apps can share the same logic:
+
+| Path | Package | What it is |
+| --- | --- | --- |
+| `apps/mobile` | `@logbook/mobile` | The Expo app: screens, storage, sharing, `app.json`, `eas.json` |
+| `packages/core` | `@logbook/core` | Platform-free logic: dates, summaries, leave spans, reports, CSV and Excel export, and its tests |
+
+`@logbook/core` has no React, storage or native code, so any JavaScript app can import it. A new app goes in `apps/<name>` and adds `"@logbook/core": "*"` to its dependencies.
+
 ## Use it while building
 
+Install once from the repository root. Each workspace has its own scripts; the root runs them all.
+
 ```sh
-npm install
-npm test
-npx expo start
+npm install          # every workspace, one package-lock.json at the root
+npm test             # core tests
+npm run typecheck    # every workspace
+npm run lint         # every workspace
+npm start            # Expo dev server for apps/mobile
 ```
+
+Run Expo and EAS commands from `apps/mobile` (`cd apps/mobile && npx expo install <package>`).
 
 Open the project in Expo Go. This SDK matches the Expo Go app during the SDK 58 transition. Expo Go loads the project from your computer. It does not download releases, and its saved days are separate from an installed build.
 
@@ -21,7 +38,7 @@ Open the project in Expo Go. This SDK matches the Expo Go app during the SDK 58 
 
 There are two kinds of release, both run by `.github/workflows/release.yml`:
 
-- **Over-the-air update** (JavaScript and assets): every push to `main` publishes one. Installed APKs download it from Expo’s update service on the next launch, or when you tap **Check for update** in Settings. No reinstall.
+- **Over-the-air update** (JavaScript and assets): every push to `main` that changes `apps/mobile`, `packages/core` or the dependencies publishes one. Installed APKs download it from Expo’s update service on the next launch, or when you tap **Check for update** in Settings. No reinstall.
 - **APK** (native changes): Actions → **Release** → **Run workflow**, pick **Release APK application**. EAS builds the APK, and the workflow attaches it to a GitHub release tagged `v<version>-<build>`. Install it over the old one; the log is kept.
 
 One-time setup:
@@ -29,9 +46,9 @@ One-time setup:
 1. Create a free Expo account and run `npx eas-cli@latest login`.
 2. Create an access token at [expo.dev/settings/access-tokens](https://expo.dev/settings/access-tokens) and save it as the `EXPO_TOKEN` repository secret.
 3. Run the **Release APK application** workflow and install the APK from the new GitHub release.
-4. Back up the signing key: `npx eas-cli@latest credentials -p android` → download the keystore. Android only installs an APK over the old one when both are signed with this key; a different key means uninstalling, which deletes the log.
+4. Back up the signing key: from `apps/mobile`, run `npx eas-cli@latest credentials -p android` → download the keystore. Android only installs an APK over the old one when both are signed with this key; a different key means uninstalling, which deletes the log.
 
-When you need a new APK: after adding a package with native code, changing a config plugin or permission in `app.json`, or upgrading the Expo SDK. Bump `expo.version` in `app.json` first. That version is the runtime id, so over-the-air updates only reach APKs with the same version, and an update that needs native code the old APK lacks never reaches it. The build number (`versionCode`) is managed by EAS and goes up on every build, so you never edit it.
+When you need a new APK: after adding a package with native code, changing a config plugin or permission in `apps/mobile/app.json`, or upgrading the Expo SDK. Bump `expo.version` in `apps/mobile/app.json` first. That version is the runtime id, so over-the-air updates only reach APKs with the same version, and an update that needs native code the old APK lacks never reaches it. The build number (`versionCode`) is managed by EAS and goes up on every build, so you never edit it.
 
 To get new APKs on the phone without checking GitHub by hand, install [Obtainium](https://github.com/ImranR98/Obtainium) and add `https://github.com/prajwal-hebbar-07/tracker-mobile`. It watches the releases, notifies you, and installs the APK.
 

@@ -15,7 +15,7 @@ import {
   plural,
   type Day,
   type LeaveType,
-} from '@/logic'
+} from '@logbook/core'
 import { useDays } from '@/store'
 import { color, leaveIcon, radius } from '@/theme'
 

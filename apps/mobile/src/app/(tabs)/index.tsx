@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router'
 import { Screen } from '@/components/Screen'
 import { TodayCard } from '@/components/TodayCard'
-import { parseDateKey, todayKey } from '@/logic'
+import { parseDateKey, todayKey } from '@logbook/core'
 
 export default function TodayScreen() {
   return (

@@ -4,7 +4,7 @@ import { useDialog } from '@/components/Dialog'
 import { LeaveForm } from '@/components/LeaveForm'
 import { TimeField } from '@/components/TimeField'
 import { Button, Card, Icon, text } from '@/components/ui'
-import { formatMinutes, leaveLabel, minutesBetween, minutesSince, timeNow, todayKey } from '@/logic'
+import { formatMinutes, leaveLabel, minutesBetween, minutesSince, timeNow, todayKey } from '@logbook/core'
 import { useDays } from '@/store'
 import { color, kindMeta, type IconName } from '@/theme'
 
