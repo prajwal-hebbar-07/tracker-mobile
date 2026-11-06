@@ -43,7 +43,7 @@ else
   read -r version url digest <<EOF
 $release
 EOF
-  echo "Downloading Logbook CLI $version…"
+  echo "Downloading Logbook CLI ${version}…"
   curl -fsSL "$url" -o "$tmp"
   if [ "$digest" != "-" ]; then
     actual=$(node -e 'process.stdout.write(require("crypto").createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex"))' "$tmp")
