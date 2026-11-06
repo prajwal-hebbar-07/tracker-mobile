@@ -49,7 +49,7 @@ type PageProps = {
 // Full-screen view: Tab or 1-4 switch pages, each page lists its keys at the bottom.
 export function App({ file, version, update }: { file: string; version: string; update: string | null }) {
   const { exit } = useApp()
-  const { columns } = useWindowSize()
+  const { columns, rows } = useWindowSize()
   const [days, setDays] = useState<Days>({})
   const [loadError, setLoadError] = useState('')
   const [now, setNow] = useState(() => new Date())
@@ -113,41 +113,44 @@ export function App({ file, version, update }: { file: string; version: string; 
 
   const width = Math.min(columns, 64)
 
+  // The panel sits in the middle of the terminal; the outer box fills the whole alternate screen.
   return (
-    <Box flexDirection="column" width={width} borderStyle="round" borderColor={color.line} paddingX={2} paddingY={1}>
-      <Box justifyContent="space-between">
-        <Text color={color.office} bold>
-          ◆ Logbook
-        </Text>
-        <Box gap={2}>
-          {pages.map((name, index) => (
-            <Text key={name} color={index === page ? color.office : color.faint} bold={index === page} underline={index === page}>
-              {name}
-            </Text>
-          ))}
+    <Box width={columns} height={rows} alignItems="center" justifyContent="center">
+      <Box flexDirection="column" width={width} borderStyle="round" borderColor={color.line} paddingX={2} paddingY={1}>
+        <Box justifyContent="space-between">
+          <Text color={color.office} bold>
+            ◆ Logbook
+          </Text>
+          <Box gap={2}>
+            {pages.map((name, index) => (
+              <Text key={name} color={index === page ? color.office : color.faint} bold={index === page} underline={index === page}>
+                {name}
+              </Text>
+            ))}
+          </Box>
         </Box>
-      </Box>
-      <Box marginTop={1} minHeight={14} flexDirection="column">
-        {loadError ? <Text color={color.danger}>{loadError}</Text> : null}
-        {page === 0 ? <TodayPage {...props} active={!prompt} /> : null}
-        {page === 1 ? <MonthPage {...props} active={!prompt} goToday={() => goTo(0)} /> : null}
-        {page === 2 ? <YearPage {...props} active={!prompt} /> : null}
-        {page === 3 ? <MorePage {...props} active={!prompt} file={file} version={version} update={update} /> : null}
-      </Box>
-      {prompt ? <PromptView prompt={prompt} close={() => setPrompt(null)} /> : null}
-      {flash ? (
-        <Text color={flash.ok ? color.success : color.danger}>
-          {flash.ok ? '✓' : '✗'} {flash.text}
-        </Text>
-      ) : null}
-      {update ? (
-        <Text color={color.office}>
-          ↑ Logbook {update} is available ({version} installed). Run <Text bold>logbook update</Text>.
-        </Text>
-      ) : null}
-      <Box marginTop={1} justifyContent="space-between">
-        <Text color={color.faint}>tab/1-4 pages</Text>
-        <Text color={color.faint}>q quit</Text>
+        <Box marginTop={1} minHeight={14} flexDirection="column">
+          {loadError ? <Text color={color.danger}>{loadError}</Text> : null}
+          {page === 0 ? <TodayPage {...props} active={!prompt} /> : null}
+          {page === 1 ? <MonthPage {...props} active={!prompt} goToday={() => goTo(0)} /> : null}
+          {page === 2 ? <YearPage {...props} active={!prompt} /> : null}
+          {page === 3 ? <MorePage {...props} active={!prompt} file={file} version={version} update={update} /> : null}
+        </Box>
+        {prompt ? <PromptView prompt={prompt} close={() => setPrompt(null)} /> : null}
+        {flash ? (
+          <Text color={flash.ok ? color.success : color.danger}>
+            {flash.ok ? '✓' : '✗'} {flash.text}
+          </Text>
+        ) : null}
+        {update ? (
+          <Text color={color.office}>
+            ↑ Logbook {update} is available ({version} installed). Run <Text bold>logbook update</Text>.
+          </Text>
+        ) : null}
+        <Box marginTop={1} justifyContent="space-between">
+          <Text color={color.faint}>tab/1-4 pages</Text>
+          <Text color={color.faint}>q quit</Text>
+        </Box>
       </Box>
     </Box>
   )
