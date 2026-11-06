@@ -1,4 +1,11 @@
-use std::{fs, io::ErrorKind, path::PathBuf};
+use std::{
+    collections::hash_map::DefaultHasher,
+    fs,
+    hash::{Hash, Hasher},
+    io::ErrorKind,
+    path::PathBuf,
+    sync::Mutex,
+};
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
@@ -22,11 +29,36 @@ fn log_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+// widget/Reload.swift, linked in by build.rs.
+extern "C" {
+    fn logbook_reload_widgets();
+}
+
+// The log text the desktop widget (widget/, a WidgetKit extension) was last redrawn for, as a hash.
+static WIDGET_SAW: Mutex<Option<u64>> = Mutex::new(None);
+
+// Redraws the desktop widget when the log differs from what it last showed. The page re-reads the log every few
+// seconds, so edits made with the CLI reach the widget too while this app runs.
+fn show_in_widget(text: &str) {
+    let mut hasher = DefaultHasher::new();
+    text.hash(&mut hasher);
+    let hash = Some(hasher.finish());
+    let mut saw = WIDGET_SAW.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if *saw != hash {
+        *saw = hash;
+        // SAFETY: takes no arguments and only messages WidgetKit.
+        unsafe { logbook_reload_widgets() };
+    }
+}
+
 // None means there is no log yet, which is different from a log that could not be read.
 #[tauri::command]
 fn load_days(app: AppHandle) -> Result<Option<String>, String> {
     match fs::read_to_string(log_path(&app)?) {
-        Ok(text) => Ok(Some(text)),
+        Ok(text) => {
+            show_in_widget(&text);
+            Ok(Some(text))
+        }
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.to_string()),
     }
@@ -36,7 +68,9 @@ fn load_days(app: AppHandle) -> Result<Option<String>, String> {
 fn write_log(path: &PathBuf, json: &str) -> Result<(), String> {
     let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
     fs::write(&tmp, json).map_err(|e| e.to_string())?;
-    fs::rename(&tmp, path).map_err(|e| e.to_string())
+    fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    show_in_widget(json);
+    Ok(())
 }
 
 // Replaces the whole log (restore from a backup).
