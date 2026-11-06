@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useLog } from './log'
 import { Month } from './pages/Month'
 import { Today } from './pages/Today'
+import { Year } from './pages/Year'
 
-const pages = ['Today', 'Month'] as const
+const pages = ['Today', 'Month', 'Year'] as const
 
 // One page per screen; swipe sideways on the trackpad, click a dot, or use ← →.
 export function App() {
@@ -76,6 +77,9 @@ export function App() {
             </section>
             <section className="page" aria-label="Month">
               <Month log={log} now={now} onToday={() => goTo(0)} />
+            </section>
+            <section className="page" aria-label="Year">
+              <Year log={log} now={now} />
             </section>
           </>
         ) : null}
