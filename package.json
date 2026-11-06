@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "start": "npm run start -w @logbook/mobile",
+    "widget": "npm run dev -w @logbook/desktop",
+    "widget:build": "npm run build -w @logbook/desktop",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
