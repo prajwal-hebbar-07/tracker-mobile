@@ -4,12 +4,21 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_window_state::StateFlags;
 
-// The log is one JSON file in the app's data folder: ~/Library/Application Support/<identifier>/days.json.
-// The `logbook` command line tool reads and writes the same file.
+// The log's folder: ~/Library/Application Support/works.oni.logbook.widget/days.json. It is named here, not taken from
+// the app's identifier, so the log stays put if the identifier ever changes. It lives outside the app, so deleting,
+// reinstalling or updating Logbook Widget never touches it. The `logbook` CLI reads and writes the same file.
+const LOG_FOLDER: &str = "works.oni.logbook.widget";
+
+// LOGBOOK_FILE points at another log, as it does for the CLI (only seen when the widget is started from a terminal).
 fn log_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join("days.json"))
+    let path = match std::env::var_os("LOGBOOK_FILE") {
+        Some(file) => PathBuf::from(file),
+        None => app.path().data_dir().map_err(|e| e.to_string())?.join(LOG_FOLDER).join("days.json"),
+    };
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    Ok(path)
 }
 
 // None means there is no log yet, which is different from a log that could not be read.

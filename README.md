@@ -49,7 +49,7 @@ A small glass panel that sits on the desktop behind other windows, shows on ever
 - **Year**: totals, leave by type, and the month-by-month table.
 - **More**: Excel for this month, this year or every year (the same workbook as the phone); save or copy a backup; restore from a backup file or pasted text; Quit.
 
-The log is `~/Library/Application Support/works.oni.logbook.widget/days.json`. To move the phone's log to the Mac, use **Share backup (JSON)** on the phone, then **Restore** on the widget; **Copy** on the widget and **Restore from backup** on the phone go the other way.
+The log is `~/Library/Application Support/works.oni.logbook.widget/days.json`, shared with the CLI. It is kept outside the app on purpose: deleting the app or reinstalling it never touches the log. Only deleting that folder does, which "uninstaller" tools such as AppCleaner offer to do; untick it there. The folder name is fixed in code, so it does not move if the app's identifier changes. To move the phone's log to the Mac, use **Share backup (JSON)** on the phone, then **Restore** on the widget; **Copy** on the widget and **Restore from backup** on the phone go the other way.
 
 Install: run `npm run widget:build`, open the `.dmg` and drag **Logbook Widget** to Applications. It is ad-hoc signed, not notarized, so a copy downloaded from elsewhere needs right-click → **Open** the first time. To start it at login, add it in System Settings → General → Login Items.
 
