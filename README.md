@@ -17,18 +17,22 @@ npx expo start
 
 Open the project in Expo Go. This SDK matches the Expo Go app during the SDK 58 transition. Expo Go loads the project from your computer. It does not download releases, and its saved days are separate from an installed build.
 
-## Install a copy that updates from this repo
+## Release and update the app
 
-Expo can update the JavaScript inside an installed app without a new APK. The phone still asks Expo’s update service, not GitHub directly. GitHub Actions publishes to that service when `main` changes, which is the automatic part.
+There are two kinds of release, both run by `.github/workflows/release.yml`:
+
+- **Over-the-air update** (JavaScript and assets): every push to `main` publishes one. Installed APKs download it from Expo’s update service on the next launch, or when you tap **Check for update** in Settings. No reinstall.
+- **APK** (native changes): Actions → **Release** → **Run workflow**, pick **Release APK application**. EAS builds the APK, and the workflow attaches it to a GitHub release tagged `v<version>-<build>`. Install it over the old one; the log is kept.
+
+One-time setup:
 
 1. Create a free Expo account and run `npx eas-cli@latest login`.
-2. Run `npx eas-cli@latest update:configure`. Commit the project id it writes into `app.json`.
-3. Create an access token at [expo.dev/settings/access-tokens](https://expo.dev/settings/access-tokens) and save it as the `EXPO_TOKEN` repository secret.
-4. Build the installable APK once: `npx eas-cli@latest build -p android --profile preview`. Install that APK. It listens to the `preview` channel.
-5. Push to `main`. The workflow publishes an update. Open the app and let it sit, then open it again, or tap **Check for update** in Settings.
+2. Create an access token at [expo.dev/settings/access-tokens](https://expo.dev/settings/access-tokens) and save it as the `EXPO_TOKEN` repository secret.
+3. Run the **Release APK application** workflow and install the APK from the new GitHub release.
+4. Back up the signing key: `npx eas-cli@latest credentials -p android` → download the keystore. Android only installs an APK over the old one when both are signed with this key; a different key means uninstalling, which deletes the log.
 
-Keep `expo.version` (now `1.1.0`, since `expo-sharing` added a native module) until you install a new APK. That version is the runtime id, so a published update only reaches builds with the same version. Bump it when a new native module forces a new build, then build and install again.
+When you need a new APK: after adding a package with native code, changing a config plugin or permission in `app.json`, or upgrading the Expo SDK. Bump `expo.version` in `app.json` first. That version is the runtime id, so over-the-air updates only reach APKs with the same version, and an update that needs native code the old APK lacks never reaches it. The build number (`versionCode`) is managed by EAS and goes up on every build, so you never edit it.
+
+To get new APKs on the phone without checking GitHub by hand, install [Obtainium](https://github.com/ImranR98/Obtainium) and add `https://github.com/prajwal-hebbar-07/tracker-mobile`. It watches the releases, notifies you, and installs the APK.
 
 Export a backup from Settings before switching from Expo Go to the APK. The two installs do not share a log.
-
-JavaScript and asset changes ship through the workflow. A new native dependency needs a new APK from step 4.

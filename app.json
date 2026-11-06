@@ -15,7 +15,6 @@
     },
     "android": {
       "package": "works.oni.logbook",
-      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#10120F",
         "foregroundImage": "./assets/android-icon-foreground.png",

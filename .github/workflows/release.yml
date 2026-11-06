@@ -1,0 +1,136 @@
+name: Release
+
+# Push to main: publish an over-the-air update (JavaScript and assets) to installed APKs.
+# Actions → Release → Run workflow: pick what to release from the dropdown.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: What to release
+        type: choice
+        required: true
+        default: Release APK application
+        options:
+          - Release APK application
+          - Over-the-air update (JavaScript only)
+      notes:
+        description: Release notes for the APK (leave empty to list the commits)
+        type: string
+        required: false
+
+jobs:
+  update:
+    if: github.event_name == 'push' || inputs.release == 'Over-the-air update (JavaScript only)'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check for EXPO_TOKEN
+        id: token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "EXPO_TOKEN is not set, so this push will not update the phone."
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.token.outputs.has == 'true'
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        if: steps.token.outputs.has == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup EAS
+        if: steps.token.outputs.has == 'true'
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.token.outputs.has == 'true'
+        run: npm ci
+
+      - name: Publish update
+        if: steps.token.outputs.has == 'true'
+        env:
+          MESSAGE: ${{ github.event.head_commit.message || 'Update from GitHub' }}
+        run: eas update --channel preview --environment preview --non-interactive --message "$MESSAGE"
+
+  apk:
+    if: github.event_name == 'workflow_dispatch' && inputs.release == 'Release APK application'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    steps:
+      - name: Check for EXPO_TOKEN
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Add the EXPO_TOKEN repository secret before releasing an APK."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Signed with the keystore EAS keeps for this app, so each APK installs over the last one.
+      # versionCode goes up by one on every build (remote version source in eas.json).
+      - name: Build APK on EAS
+        run: eas build --platform android --profile preview --non-interactive --wait --json --message "Release from ${GITHUB_SHA::7}" > build.json
+
+      - name: Download APK
+        id: apk
+        run: |
+          version=$(jq -r '.[0].appVersion' build.json)
+          code=$(jq -r '.[0].appBuildVersion' build.json)
+          url=$(jq -r '.[0].artifacts.buildUrl' build.json)
+          file="logbook-$version-$code.apk"
+          curl --fail --silent --show-error --location --output "$file" "$url"
+          {
+            echo "version=$version"
+            echo "code=$code"
+            echo "file=$file"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+          VERSION: ${{ steps.apk.outputs.version }}
+          CODE: ${{ steps.apk.outputs.code }}
+          FILE: ${{ steps.apk.outputs.file }}
+        run: |
+          if [ -n "$NOTES" ]; then notes=(--notes "$NOTES"); else notes=(--generate-notes); fi
+          gh release create "v$VERSION-$CODE" "$FILE" \
+            --title "Logbook $VERSION (build $CODE)" \
+            --target "$GITHUB_SHA" \
+            --latest \
+            "${notes[@]}"
