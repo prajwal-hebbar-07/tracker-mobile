@@ -362,7 +362,7 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
       if (input === 'o') apply(today, clockOut(day, undefined, at))
       if (input === keyOf.home) apply(today, workFromHome(day))
       if (input === keyOf.leave && !day) askLeave(ask, apply, today, day, false)
-      if (input === 's' && day) ask({ kind: 'confirm', label: 'Start today over?', onYes: () => apply(today, reset(day, true)) })
+      if (input === 's' && day) apply(today, reset(day, true))
       if (input === 'e' && office?.in) {
         ask({ kind: 'text', label: 'Clock-in time (HH:MM)', initial: office.in, onSubmit: (value) => apply(today, clockIn(day, value, timeNow())) })
       }
