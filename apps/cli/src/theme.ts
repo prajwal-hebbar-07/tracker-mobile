@@ -298,3 +298,10 @@ export function applyTheme(id: string): void {
 applyTheme(defaultTheme)
 
 export const kindGlyph: Record<Kind, string> = { office: '■', wfh: '⌂', leave: '☀' }
+
+// `a` laid over `b` at `amount` (0 to 1): soft tints such as a range of leave being picked.
+export function mix(a: string, b: string, amount: number): string {
+  const channel = (hex: string, index: number) => parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16)
+  const parts = [0, 1, 2].map((index) => Math.round(channel(a, index) * amount + channel(b, index) * (1 - amount)))
+  return `#${parts.map((part) => part.toString(16).padStart(2, '0')).join('')}`
+}

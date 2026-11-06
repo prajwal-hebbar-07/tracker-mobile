@@ -2,6 +2,7 @@ import {
   formatLong,
   formatMinutes,
   formatMonth,
+  isWeekend,
   leaveCounts,
   leaveLabel,
   leaveTypes,
@@ -15,7 +16,7 @@ import {
 } from '@logbook/core'
 import { Box, Text, type BoxProps } from 'ink'
 import { createContext, useContext, type ReactNode } from 'react'
-import { color, kindGlyph, toneColor } from './theme.ts'
+import { color, kindGlyph, mix, toneColor } from './theme.ts'
 
 // Shared by the interactive view and the one-shot commands, so both look the same.
 
@@ -90,7 +91,39 @@ export function Status({ day, now, today }: { day?: Day; now: Date; today: strin
 
 const dow = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 
-// Monday-first heatmap; each day is a coloured block like the phone's calendar. `planned` marks a range of leave being picked.
+// One day: what fills it and how its number is drawn.
+function dayLook(date: string, days: Days, today: string, planned: boolean) {
+  const kind = tone(days[date] ?? null)
+  const weekend = isWeekend(date)
+  if (planned) return { fill: mix(color.leave, color.panel, 0.3), ink: color.leave }
+  if (kind !== 'none') return { fill: toneColor[kind], ink: kind === 'office-open' ? color.text : color.ink }
+  // Today is only tinted; the cursor is what gets a border.
+  if (date === today) return { fill: mix(color.accent, color.panel, 0.18), ink: color.accent }
+  // A past working day with nothing logged stands out; empty weekends and the future stay quiet.
+  if (date < today && !weekend) return { fill: toneColor.none, ink: color.muted }
+  return { fill: undefined, ink: weekend ? color.faint : color.muted }
+}
+
+type Run = { text: string; fg?: string; bg?: string; bold?: boolean }
+
+const blank = (width: number): Run => ({ text: ' '.repeat(width) })
+
+// `text` in the middle of `width` columns; an odd leftover goes to the right.
+function centred(text: string, width: number): string {
+  const left = Math.floor((width - text.length) / 2)
+  return ' '.repeat(left) + text + ' '.repeat(width - text.length - left)
+}
+
+// Terminal cells are a bit over twice as tall as they are wide, so a tile `size` columns wide and 3 rows tall is close
+// to square at the default 7. Tiles shrink to fit `width`.
+function tileSize(width: number): number {
+  return Math.max(5, Math.min(7, Math.floor((width + 1) / 7) - 1))
+}
+
+// Monday-first heatmap of square tiles with the day number in the middle. The cursor's tile draws its own rounded
+// border, so the highlight is the same square and moving it never shifts the grid. `planned` tints a range of leave
+// being picked. `width` is the room available; the grid takes as much of it as the tiles allow. `spaced` puts a blank
+// row between weeks; a short terminal turns it off so the panel still fits.
 export function MonthGrid({
   days,
   year,
@@ -98,6 +131,8 @@ export function MonthGrid({
   today,
   selected,
   planned = [],
+  width = 57,
+  spaced = true,
 }: {
   days: Days
   year: number
@@ -105,47 +140,44 @@ export function MonthGrid({
   today: string
   selected?: string
   planned?: string[]
+  width?: number
+  spaced?: boolean
 }) {
+  const size = tileSize(width)
   const cells = monthCells(year, month)
   const weeks = Array.from({ length: cells.length / 7 }, (_, index) => cells.slice(index * 7, index * 7 + 7))
+
+  // Row 0 to 2 of every tile in a week, with a one-column gap between tiles.
+  const tileRow = (week: (string | null)[], row: number): Run[] =>
+    week.flatMap((date, column): Run[] => {
+      const gap = column === 0 ? [] : [blank(1)]
+      if (!date) return [...gap, blank(size)]
+      const look = dayLook(date, days, today, planned.includes(date))
+      const number = String(Number(date.slice(8)))
+      const bold = date === today || date === selected
+      if (date !== selected) {
+        return [...gap, { text: row === 1 ? centred(number, size) : ' '.repeat(size), fg: look.ink, bg: look.fill, bold }]
+      }
+      const edge = (text: string): Run => ({ text, fg: color.accent, bg: look.fill })
+      if (row === 0) return [...gap, edge(`╭${'─'.repeat(size - 2)}╮`)]
+      if (row === 2) return [...gap, edge(`╰${'─'.repeat(size - 2)}╯`)]
+      return [...gap, edge('│'), { text: centred(number, size - 2), fg: look.ink, bg: look.fill, bold }, edge('│')]
+    })
+
+  const lines: Run[][] = [
+    dow.map((name, index): Run => ({ text: (index ? ' ' : '') + centred(name, size), fg: index > 4 ? color.faint : color.muted, bold: true })),
+    ...weeks.flatMap((week, row) => [...(row && spaced ? [[blank(1)]] : []), tileRow(week, 0), tileRow(week, 1), tileRow(week, 2)]),
+  ]
   return (
     <Box flexDirection="column">
-      <Box>
-        {dow.map((name, index) => (
-          <Box key={name} width={5} justifyContent="center">
-            <Text color={index > 4 ? color.faint : color.muted} bold>
-              {name}
+      {lines.map((runs, line) => (
+        <Text key={line}>
+          {runs.map((run, index) => (
+            <Text key={index} color={run.fg} backgroundColor={run.bg} bold={run.bold}>
+              {run.text}
             </Text>
-          </Box>
-        ))}
-      </Box>
-      {weeks.map((week, row) => (
-        <Box key={row}>
-          {week.map((date, index) => {
-            if (!date) return <Box key={index} width={5} />
-            const kind = tone(days[date] ?? null)
-            const future = date > today && kind === 'none'
-            const filled = !future
-            const ink = kind === 'office' || kind === 'wfh' || kind === 'leave' ? color.ink : future ? color.faint : color.text
-            const marker = date === selected ? '›' : planned.includes(date) ? '•' : ' '
-            const label = String(Number(date.slice(8))).padStart(2, ' ')
-            return (
-              <Box key={date} width={5}>
-                <Text color={date === selected ? color.accent : color.leave} bold>
-                  {marker}
-                </Text>
-                <Text
-                  backgroundColor={filled ? toneColor[kind] : undefined}
-                  color={date === today && kind === 'none' ? color.accent : ink}
-                  bold={date === today || date === selected}
-                  underline={date === today}
-                >
-                  {` ${label} `}
-                </Text>
-              </Box>
-            )
-          })}
-        </Box>
+          ))}
+        </Text>
       ))}
     </Box>
   )

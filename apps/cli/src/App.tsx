@@ -10,6 +10,7 @@ import {
   leaveDates,
   leaveTypes,
   maxExcelYears,
+  monthCells,
   plural,
   timeNow,
   todayKey,
@@ -439,6 +440,7 @@ function askLeaveRange(
 }
 
 function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goToday }: PageProps & { goToday: () => void }) {
+  const { columns, rows } = useWindowSize()
   const keyOf = actionKeys(vim)
   const arrows = vim ? 'hjkl' : '←↑↓→'
   const [selected, setSelected] = useState(today)
@@ -450,6 +452,10 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
   const day = days[selected]
   const range = anchor ? (anchor <= selected ? { from: anchor, to: selected } : { from: selected, to: anchor }) : null
   const planned = range ? leaveDates(range.from, range.to, weekends) : []
+  const weekCount = monthCells(year, month).length / 7
+  // Measured: the panel needs 16 rows besides the grid, 19 with a prompt open (whose keys and details it hides).
+  // The grid is a header plus 3 rows a week, and a blank row between weeks only when that still fits.
+  const spaced = rows >= (active ? 16 : 19) + 1 + weekCount * 3 + (weekCount - 1)
   const shiftMonth = (delta: number) => {
     const next = new Date(year, month + delta, 1)
     setSelected(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`)
@@ -486,13 +492,13 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
     },
     { isActive: active },
   )
+  // Short labels keep each list on one line; the line above the keys already says what a range will save.
   const keys: [string, string][] = range
     ? [
         [arrows, 'extend'],
-        ['[ ]', 'month'],
-        [keyOf.leave, `leave on ${plural(planned.length, 'day')}`],
-        ['w', weekends ? 'skip weekends' : 'count weekends'],
-        [vim ? 'v/esc' : 'r', 'cancel range'],
+        [keyOf.leave, 'save'],
+        ['w', weekends ? 'skip weekends' : 'add weekends'],
+        [vim ? 'v/esc' : 'r', 'cancel'],
       ]
     : selected === today
       ? [
@@ -505,18 +511,30 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
           [arrows, 'day'],
           ['[ ]', 'month'],
           ['t', 'today'],
-          [keyOf.leave, day?.kind === 'leave' ? 'edit leave' : 'mark leave'],
+          [keyOf.leave, 'leave'],
           ...(day?.kind === 'leave' ? ([['d', 'remove']] as [string, string][]) : []),
           [keyOf.range, 'range'],
         ]
   return (
     <Box flexDirection="column" gap={1}>
-      <Text bold color={color.accent}>
-        {new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-      </Text>
-      <MonthGrid days={days} year={year} month={month} today={today} selected={selected} planned={planned} />
-      <Legend />
-      {range ? (
+      <Box justifyContent="space-between">
+        <Text bold color={color.accent}>
+          {new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+        </Text>
+        <Legend />
+      </Box>
+      <MonthGrid
+        days={days}
+        year={year}
+        month={month}
+        today={today}
+        selected={selected}
+        planned={planned}
+        width={Math.min(columns, 64) - 6}
+        spaced={spaced}
+      />
+      {/* While a prompt is open it says what it is about, so these lines make room for it. */}
+      {!active ? null : range ? (
         <Box flexDirection="column">
           <Text color={color.leave} bold>
             {formatRange(range.from, range.to)}
@@ -527,10 +545,11 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
         </Box>
       ) : (
         <Box flexDirection="column">
-          <Text color={color.text} bold>
-            {formatLong(selected)}
-          </Text>
           <Text color={color.muted}>
+            <Text color={color.text} bold>
+              {formatLong(selected)}
+            </Text>
+            {' · '}
             {day ? describeDay(day) : 'Nothing logged'}
             {day?.kind === 'leave' && day.note ? ` — ${day.note}` : ''}
           </Text>
@@ -846,9 +865,7 @@ function PromptView({ prompt, vim, close }: { prompt: Prompt; vim: boolean; clos
           {start + promptRows < options.length ? <Text color={color.faint}> ↓ {options.length - start - promptRows} more</Text> : null}
         </Box>
       ) : null}
-      <Box marginTop={1}>
-        <Text color={color.faint}>{hint}</Text>
-      </Box>
+      <Text color={color.faint}>{hint}</Text>
     </Box>
   )
 }
