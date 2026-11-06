@@ -2,6 +2,7 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "target": "ES2022",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "module": "preserve",
