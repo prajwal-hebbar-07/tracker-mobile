@@ -1,9 +1,10 @@
 import { formatLong, todayKey } from '@logbook/core'
 import { useEffect, useRef, useState } from 'react'
 import { useLog } from './log'
+import { Month } from './pages/Month'
 import { Today } from './pages/Today'
 
-const pages = ['Today'] as const
+const pages = ['Today', 'Month'] as const
 
 // One page per screen; swipe sideways on the trackpad, click a dot, or use ← →.
 export function App() {
@@ -72,6 +73,9 @@ export function App() {
           <>
             <section className="page" aria-label="Today">
               <Today log={log} now={now} />
+            </section>
+            <section className="page" aria-label="Month">
+              <Month log={log} now={now} onToday={() => goTo(0)} />
             </section>
           </>
         ) : null}
