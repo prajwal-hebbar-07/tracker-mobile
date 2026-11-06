@@ -1,4 +1,4 @@
-This is an npm workspaces monorepo. `apps/mobile` is an Expo/React Native mobile application; `apps/desktop` is a Tauri + React Mac desktop widget (Rust in `src-tauri/`, not Expo); `packages/core` (`@logbook/core`) holds the platform-free logic every app shares. Prioritize mobile-first patterns, performance, and cross-platform compatibility in the mobile app, and keep `packages/core` free of React, storage, and native imports. The Expo rules below apply to `apps/mobile` only.
+This is an npm workspaces monorepo. `apps/mobile` is an Expo/React Native mobile application; `apps/desktop` is a Tauri + React Mac desktop widget (Rust in `src-tauri/`, not Expo); `apps/cli` is the `logbook` command (Ink + React in the terminal, bundled by esbuild, sharing the widget's log file); `packages/core` (`@logbook/core`) holds the platform-free logic every app shares. Prioritize mobile-first patterns, performance, and cross-platform compatibility in the mobile app, and keep `packages/core` free of React, storage, and native imports. The Expo rules below apply to `apps/mobile` only.
 
 ## Expo has changed — do not trust your training data
 

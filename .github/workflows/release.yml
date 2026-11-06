@@ -21,9 +21,10 @@ on:
         default: Release APK application
         options:
           - Release APK application
+          - Release command line tool
           - Over-the-air update (JavaScript only)
       notes:
-        description: Release notes for the APK (leave empty to list the commits)
+        description: Release notes (leave empty to list the commits)
         type: string
         required: false
 
@@ -144,4 +145,51 @@ jobs:
             --title "Logbook $VERSION (build $CODE)" \
             --target "$GITHUB_SHA" \
             --latest \
+            "${notes[@]}"
+
+  # The CLI ships as one bundled file on a cli-v<version> release. Installed copies find it through the
+  # GitHub releases API (update notice, `logbook update`, install.sh). Not marked latest, so the repo's
+  # latest release stays the APK that Obtainium installs.
+  cli:
+    if: github.event_name == 'workflow_dispatch' && inputs.release == 'Release command line tool'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test -w @logbook/core -w @logbook/cli
+
+      - name: Build
+        id: build
+        run: |
+          npm run build -w @logbook/cli
+          echo "version=$(node -p 'require("./apps/cli/package.json").version')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+          VERSION: ${{ steps.build.outputs.version }}
+        run: |
+          if gh release view "cli-v$VERSION" > /dev/null 2>&1; then
+            echo "::error::cli-v$VERSION is already released. Raise the version in apps/cli/package.json first."
+            exit 1
+          fi
+          if [ -n "$NOTES" ]; then notes=(--notes "$NOTES"); else notes=(--generate-notes); fi
+          gh release create "cli-v$VERSION" apps/cli/dist/logbook.mjs \
+            --title "Logbook CLI $VERSION" \
+            --target "$GITHUB_SHA" \
+            --latest=false \
             "${notes[@]}"

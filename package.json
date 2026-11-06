@@ -9,6 +9,8 @@
     "start": "npm run start -w @logbook/mobile",
     "widget": "npm run dev -w @logbook/desktop",
     "widget:build": "npm run build -w @logbook/desktop",
+    "cli": "npm run start -w @logbook/cli --",
+    "cli:install": "npm run build -w @logbook/cli && sh apps/cli/install.sh apps/cli/dist/logbook.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"

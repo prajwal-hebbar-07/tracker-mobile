@@ -1,6 +1,6 @@
 # Logbook
 
-Personal attendance and leave log, dark theme only: an Android app, plus a Mac desktop widget. Each keeps its own log on its own device; move it between them with a JSON backup.
+Personal attendance and leave log, dark theme only: an Android app, a Mac desktop widget and a command line tool. The widget and the CLI share one log on the Mac; the phone keeps its own, and a JSON backup moves it between them.
 
 - **Today**: clock in, clock out, work from home or leave, for today only. **Leave** asks for the type and an optional note, then **Save leave** records it. Once clocked in, the clock-in time shows on the card with **Edit time**; after clock-out both times do. **Start over** clears today so you can choose again.
 - **Calendar**: a month at a glance. Tap another date to see what was logged or to mark it as leave. **Share month** sends a readable list of every day; **Share month as Excel** sends the same workbook as the Report export, with one row for each day of that month.
@@ -15,6 +15,7 @@ An npm workspaces monorepo, so other Logbook apps can share the same logic:
 | --- | --- | --- |
 | `apps/mobile` | `@logbook/mobile` | The Expo app: screens, storage, sharing, `app.json`, `eas.json` |
 | `apps/desktop` | `@logbook/desktop` | The Mac widget: Tauri (`src-tauri/`) around a React page (`src/`) |
+| `apps/cli` | `@logbook/cli` | The `logbook` command: an Ink terminal UI and one-shot commands, bundled into one file |
 | `packages/core` | `@logbook/core` | Platform-free logic: dates, summaries, leave spans, reports, CSV and Excel export, and its tests |
 
 `@logbook/core` has no React, storage or native code, so any JavaScript app can import it. A new app goes in `apps/<name>` and adds `"@logbook/core": "*"` to its dependencies.
@@ -31,6 +32,8 @@ npm run lint         # every workspace
 npm start            # Expo dev server for apps/mobile
 npm run widget       # Mac widget in development (needs Rust: rustup.rs)
 npm run widget:build # Logbook Widget.app and a .dmg in apps/desktop/src-tauri/target/release/bundle/
+npm run cli -- status # run the CLI from source (any command after --)
+npm run cli:install  # build the CLI and install it as `logbook`
 ```
 
 Run Expo and EAS commands from `apps/mobile` (`cd apps/mobile && npx expo install <package>`).
@@ -52,12 +55,43 @@ Install: run `npm run widget:build`, open the `.dmg` and drag **Logbook Widget**
 
 `npm run web -w @logbook/desktop` opens the same page in a browser for layout work; there the log lives in localStorage and saving downloads the file.
 
+## Command line tool
+
+`logbook` opens a full-screen view with the same pages as the widget: Tab or 1–4 switch between Today, Month, Year and More, each page lists its keys, `q` quits. One-shot commands do the common things without opening it:
+
+```sh
+logbook status                # today and this month's calendar
+logbook in [09:15]            # clock in now or at a time; again to fix the time
+logbook out [18:30]           # clock out
+logbook home                  # work from home today
+logbook leave sick --date 2026-11-12 --note "dentist"   # personal, early, sick or lop
+logbook reset [--date …]      # start today over, or remove leave on another day
+logbook month 2026-10         # a month's calendar
+logbook year                  # totals and months
+logbook export --year 2026    # Excel, also --month 2026-11 or --from 2024 --years 3
+logbook backup > backup.json  # JSON backup; logbook restore backup.json replaces the log
+logbook help
+```
+
+It follows the phone's rules: clock in, clock out and home only happen today; other days take leave, and replacing a worked day with leave needs `--replace`. It reads and writes the widget's log file, one day at a time against the file as it is, so neither overwrites the other; the widget re-reads the file every few seconds and the interactive view every two. Set `LOGBOOK_FILE` to use another log.
+
+Install (needs Node.js 22 or newer):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/prajwal-hebbar-07/tracker-mobile/main/apps/cli/install.sh | sh
+```
+
+That puts the tool in `~/.local/share/logbook-cli` and links `~/.local/bin/logbook`. Before the first CLI release, or to try local changes, run `npm run cli:install` from the repo instead.
+
+Updates: once a day the CLI asks GitHub, in the background, whether a newer `cli-v*` release exists. If one does, the next command ends with a notice and the interactive view shows it at the bottom; `logbook update` (or More → Update) downloads it, checks its SHA-256 against the release, and replaces the installed file. `LOGBOOK_NO_UPDATE_CHECK=1` turns the check off; it is also off in CI and when output is not a terminal.
+
 ## Release and update the app
 
-There are two kinds of release, both run by `.github/workflows/release.yml`:
+There are three kinds of release, all run by `.github/workflows/release.yml`:
 
 - **Over-the-air update** (JavaScript and assets): every push to `main` that changes `apps/mobile`, `packages/core` or the dependencies publishes one. Installed APKs download it from Expo’s update service on the next launch, or when you tap **Check for update** in Settings. No reinstall.
 - **APK** (native changes): Actions → **Release** → **Run workflow**, pick **Release APK application**. EAS builds the APK, and the workflow attaches it to a GitHub release tagged `v<version>-<build>`. Install it over the old one; the log is kept.
+- **Command line tool**: raise `version` in `apps/cli/package.json`, then Actions → **Release** → **Run workflow** → **Release command line tool**. It runs the tests, bundles the CLI and publishes `logbook.mjs` on a release tagged `cli-v<version>`, which installed copies offer as an update. The workflow refuses a version that is already released.
 
 One-time setup:
 
@@ -68,6 +102,6 @@ One-time setup:
 
 When you need a new APK: after adding a package with native code, changing a config plugin or permission in `apps/mobile/app.json`, or upgrading the Expo SDK. Bump `expo.version` in `apps/mobile/app.json` first. That version is the runtime id, so over-the-air updates only reach APKs with the same version, and an update that needs native code the old APK lacks never reaches it. The build number (`versionCode`) is managed by EAS and goes up on every build, so you never edit it.
 
-To get new APKs on the phone without checking GitHub by hand, install [Obtainium](https://github.com/ImranR98/Obtainium) and add `https://github.com/prajwal-hebbar-07/tracker-mobile`. It watches the releases, notifies you, and installs the APK.
+To get new APKs on the phone without checking GitHub by hand, install [Obtainium](https://github.com/ImranR98/Obtainium) and add `https://github.com/prajwal-hebbar-07/tracker-mobile`. It watches the releases, notifies you, and installs the APK. CLI releases are never marked as the latest release, but set the app's **Filter release titles by regular expression** to `^Logbook \d` so Obtainium only ever looks at APK releases.
 
 Export a backup from Settings before switching from Expo Go to the APK. The two installs do not share a log.

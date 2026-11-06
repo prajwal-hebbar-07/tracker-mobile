@@ -1,0 +1,31 @@
+{
+  "name": "@logbook/cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "logbook": "dist/logbook.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && node dist/logbook.mjs",
+    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@logbook/core": "*",
+    "@types/node": "^22.0.0",
+    "@types/react": "~19.3.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
+    "ink": "^8.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "19.3.0",
+    "typescript": "~6.0.3"
+  }
+}
