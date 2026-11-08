@@ -1,4 +1,5 @@
 import {
+  describeDay,
   formatLong,
   formatMinutes,
   formatMonth,
@@ -13,6 +14,7 @@ import {
   summarize,
   tone,
   workedHoliday,
+  workedHolidayDates,
   type Day,
   type Days,
 } from '@logbook/core'
@@ -75,6 +77,12 @@ export function Status({ day, now, today }: { day?: Day; now: Date; today: strin
         {workedHoliday(today, day) ? (
           <Text color={color.holiday}>
             {kindGlyph.holiday} Working on a holiday{day?.holiday && day.note ? `: ${day.note}` : ''}
+          </Text>
+        ) : null}
+        {day && workedHoliday(today, day) && (day.work || day.links) ? (
+          <Text color={color.muted}>
+            {day.work ?? 'Nothing noted yet'}
+            {day.links ? ` · ${plural(day.links.length, 'link')}` : ''}
           </Text>
         ) : null}
         {office?.in ? (
@@ -239,6 +247,48 @@ export function MonthView({ days, year, month, today }: { days: Days; year: numb
       <MonthGrid days={days} year={year} month={month} today={today} />
       <Legend />
       <MonthSummary days={days} year={year} month={month} today={today} />
+    </Box>
+  )
+}
+
+// Every holiday worked in `year` with what was done and its links, printed in full so each link stays clickable.
+export function WorkedHolidays({ days, year }: { days: Days; year: number }) {
+  const dates = workedHolidayDates(days, String(year))
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Text bold color={color.accent}>
+        Worked holidays · {year}
+      </Text>
+      {dates.length === 0 ? <Text color={color.muted}>No holidays worked in {year}.</Text> : null}
+      {dates.map((date) => {
+        const day = days[date]
+        return (
+          <Box key={date} flexDirection="column">
+            <Text>
+              <Text color={color.holiday}>{kindGlyph.holiday} </Text>
+              <Text color={color.text} bold>
+                {formatLong(date)}
+              </Text>
+              <Text color={color.muted}>
+                {' · '}
+                {describeDay(day)}
+                {day.holiday && day.note ? ` — ${day.note}` : ''}
+              </Text>
+            </Text>
+            {day.work ? (
+              <Text color={color.text}>  {day.work}</Text>
+            ) : (
+              <Text color={color.faint}>  Nothing noted. Run: logbook worked --date {date} "what you did" --link URL</Text>
+            )}
+            {(day.links ?? []).map((link) => (
+              <Text key={link} color={color.accent}>
+                {'  '}
+                {link}
+              </Text>
+            ))}
+          </Box>
+        )
+      })}
     </Box>
   )
 }

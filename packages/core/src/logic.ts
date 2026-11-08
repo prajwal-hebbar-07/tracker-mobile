@@ -34,6 +34,16 @@ export type Day = {
   leaveType?: LeaveType
   // On an office or home day: the date is a holiday that was worked anyway. A holiday's name is its note.
   holiday?: true
+  // On an office or home day: what was worked on, with links (pull requests, commits) as proof. Kept for worked
+  // holidays, weekends included.
+  work?: string
+  links?: string[]
+}
+
+// A web link as typed, or null. A pattern rather than `URL`, which React Native only partly implements.
+export function cleanLink(value: string): string | null {
+  const link = value.trim()
+  return link.length <= 500 && /^https?:\/\/[^\s/?#]+\.[^\s/?#]+(?:[/?#]\S*)?$/i.test(link) ? link : null
 }
 
 export type Days = Record<string, Day>
@@ -241,7 +251,17 @@ export function cleanDay(value: unknown): Day | null {
   if (day.kind === 'leave' && leaveTypes.some((item) => item.id === record.leaveType)) {
     day.leaveType = record.leaveType as LeaveType
   }
-  if ((day.kind === 'office' || day.kind === 'wfh') && record.holiday === true) day.holiday = true
+  if (day.kind === 'office' || day.kind === 'wfh') {
+    if (record.holiday === true) day.holiday = true
+    if (typeof record.work === 'string') {
+      const work = record.work.trim().slice(0, 1000)
+      if (work) day.work = work
+    }
+    if (Array.isArray(record.links)) {
+      const links = [...new Set(record.links.flatMap((link) => (typeof link === 'string' ? (cleanLink(link) ?? []) : [])))]
+      if (links.length) day.links = links.slice(0, 20)
+    }
+  }
   return day
 }
 
@@ -366,6 +386,18 @@ function holidayLine(summary: Summary): string {
   return `Holidays ${summary.holiday}${summary.workedHolidays ? ` · worked on ${plural(summary.workedHolidays, 'holiday')}` : ''}`
 }
 
+// Worked holidays in `prefix` (a year or a month), oldest first: the days whose work log is the proof.
+export function workedHolidayDates(days: Days, prefix: string): string[] {
+  return Object.keys(days)
+    .filter((date) => date.startsWith(prefix) && workedHoliday(date, days[date]))
+    .sort()
+}
+
+// A worked day's work log, indented under its line in the reports.
+function workLines(day: Day): string[] {
+  return [...(day.work ? [`  Worked on: ${day.work}`] : []), ...(day.links ?? []).map((link) => `  ${link}`)]
+}
+
 export function monthReport(days: Days, year: number, monthIndex: number, today: string): string {
   const prefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
   const summary = summarize(days, { today, prefix })
@@ -380,7 +412,7 @@ export function monthReport(days: Days, year: number, monthIndex: number, today:
   if (keys.length === 0) lines.push('Nothing recorded.')
   for (const key of keys) {
     const day = days[key]
-    lines.push(`${formatShort(key)} · ${describeDay(day)}${day.note ? ` — ${day.note}` : ''}`)
+    lines.push(`${formatShort(key)} · ${describeDay(day)}${day.note ? ` — ${day.note}` : ''}`, ...workLines(day))
   }
   return lines.join('\n')
 }
@@ -414,6 +446,12 @@ export function yearReport(days: Days, year: number, today: string): string {
     lines.push(
       `${formatRange(span.from, span.to)} · ${leaveLabel(span.leaveType)} · ${plural(span.count, 'day')}${span.note ? ` — ${span.note}` : ''}`,
     )
+  }
+  const worked = workedHolidayDates(days, prefix)
+  if (worked.length > 0) lines.push('', 'Worked holidays')
+  for (const date of worked) {
+    const day = days[date]
+    lines.push(`${formatShort(date)} · ${describeDay(day)}${day.holiday && day.note ? ` — ${day.note}` : ''}`, ...workLines(day))
   }
   return lines.join('\n')
 }
@@ -478,7 +516,8 @@ const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const statusNames: Record<Kind, string> = { office: 'Office', wfh: 'Home', leave: 'Leave', holiday: 'Holiday' }
 
-// An empty past weekday reads "Not logged"; an empty day still to come stays blank. A worked holiday says so.
+// An empty past weekday reads "Not logged"; an empty day still to come stays blank. A worked holiday says so, and a
+// day with a work log gets two more cells: what was worked on, and its links.
 function excelRow(date: string, day: Day | undefined, today: string): Cell[] {
   const start: Cell[] = [{ value: excelDate(date), format: 'date' }, weekdayNames[parseDateKey(date).getDay()]]
   if (!day) return [...start, isWeekend(date) ? 'Weekend' : date < today ? 'Not logged' : null]
@@ -494,11 +533,12 @@ function excelRow(date: string, day: Day | undefined, today: string): Cell[] {
     office ? excelTime(day.out) : null,
     mins == null ? null : { value: mins / 1440, format: 'duration' },
     day.note ?? null,
+    ...(day.work || day.links ? [day.work ?? null, day.links?.join(' ') ?? null] : []),
   ]
 }
 
-const excelHeader = ['Date', 'Day', 'Status', 'Leave type', 'In', 'Out', 'Hours', 'Note']
-const excelWidths = [12, 6, 16, 16, 8, 8, 8, 48]
+const excelHeader = ['Date', 'Day', 'Status', 'Leave type', 'In', 'Out', 'Hours', 'Note', 'Worked on', 'Links']
+const excelWidths = [12, 6, 16, 16, 8, 8, 8, 48, 48, 60]
 
 function excelRows(days: Days, from: string, to: string, weekends: boolean, today: string): Cell[][] {
   return eachDate(from, to)

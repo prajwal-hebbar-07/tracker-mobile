@@ -17,6 +17,8 @@ import {
   toCsv,
   tone,
   weekOf,
+  workedHolidayDates,
+  yearReport,
 } from './logic.ts'
 
 const today = '2026-11-05'
@@ -189,6 +191,28 @@ test('holidays count weekends and marked days off; working one counts as worked,
     '2026-11-03': { kind: 'wfh', holiday: true },
     '2026-11-04': { kind: 'leave' },
   })
+})
+
+test('a worked holiday keeps its work log and only real links, and the year report lists it as proof', () => {
+  const pr = 'https://github.com/owner/repo/pull/12'
+  const days = cleanDays({
+    '2026-11-03': { kind: 'wfh', holiday: true, note: 'Diwali', work: '  release fix  ', links: [pr, 'repo#12', pr, 42] },
+    '2026-11-04': { kind: 'leave', work: 'nothing', links: [pr] },
+    '2026-11-07': { kind: 'office', in: '10:00', out: '12:00', links: ['http://github.com/owner/repo/commit/abc'] },
+  })
+  assert.deepEqual(days, {
+    '2026-11-03': { kind: 'wfh', holiday: true, note: 'Diwali', work: 'release fix', links: [pr] },
+    '2026-11-04': { kind: 'leave' },
+    '2026-11-07': { kind: 'office', in: '10:00', out: '12:00', links: ['http://github.com/owner/repo/commit/abc'] },
+  })
+  assert.ok(days)
+  assert.deepEqual(workedHolidayDates(days, '2026'), ['2026-11-03', '2026-11-07'])
+  const report = yearReport(days, 2026, today)
+  assert.ok(report.includes(`Worked holidays\n`))
+  assert.ok(report.includes(`  Worked on: release fix\n  ${pr}`))
+  const [sheet] = excelSheets(days, { from: 2026, years: 1, weekends: true, split: false }, today)
+  const row = sheet.rows[eachDate('2026-01-01', '2026-11-03').length - 1]
+  assert.deepEqual(row.slice(2), ['Home (holiday)', null, null, null, null, 'Diwali', 'release fix', pr])
 })
 
 test('CSV export quotes notes that would break a column', () => {

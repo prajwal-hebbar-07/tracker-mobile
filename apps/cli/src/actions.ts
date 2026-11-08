@@ -1,4 +1,16 @@
-import { describeDay, formatRange, formatShort, leaveLabel, normalizeTime, plural, type Day, type Days, type LeaveType } from '@logbook/core'
+import {
+  cleanLink,
+  describeDay,
+  formatRange,
+  formatShort,
+  leaveLabel,
+  normalizeTime,
+  plural,
+  workedHoliday,
+  type Day,
+  type Days,
+  type LeaveType,
+} from '@logbook/core'
 
 // The phone's rules, shared by the commands and the interactive view: clock in, clock out and work from
 // home only happen today; any day can take leave or be a holiday; office and home days are only undone from today.
@@ -65,6 +77,34 @@ export function unmarkHoliday(day: Day | undefined): Change {
   const next: Day = { ...day }
   delete next.holiday
   return { ok: true, day: next, message: `${describeDay(next)}, no longer a holiday.` }
+}
+
+// Links typed on one line, split on spaces or commas.
+export function parseLinks(text: string): string[] {
+  return text.split(/[\s,]+/).filter(Boolean)
+}
+
+// What was worked on during a worked holiday (a weekend counts), with links such as GitHub pull requests as proof.
+// `undefined` keeps what is there; an empty text or list clears it.
+export function recordWork(date: string, day: Day | undefined, work: string | undefined, links: string[] | undefined): Change {
+  if (!day || !workedHoliday(date, day)) {
+    return fail('Only a worked holiday takes a work log. Clock in or work from home on a holiday or weekend first.')
+  }
+  const bad = links?.find((link) => !cleanLink(link))
+  if (bad) return fail(`${bad} is not a link. Use a full URL, such as https://github.com/owner/repo/pull/1.`)
+  const next: Day = { ...day }
+  if (work !== undefined) {
+    const trimmed = work.trim().slice(0, 1000)
+    if (trimmed) next.work = trimmed
+    else delete next.work
+  }
+  if (links !== undefined) {
+    const kept = [...new Set(links.flatMap((link) => cleanLink(link) ?? []))].slice(0, 20)
+    if (kept.length) next.links = kept
+    else delete next.links
+  }
+  if (!next.work && !next.links) return { ok: true, day: next, message: 'Work log cleared.' }
+  return { ok: true, day: next, message: `Work log saved${next.links ? ` with ${plural(next.links.length, 'link')}` : ''}.` }
 }
 
 // Replacing an office or home day with leave needs `replace`, the CLI's version of the phone's confirmation.

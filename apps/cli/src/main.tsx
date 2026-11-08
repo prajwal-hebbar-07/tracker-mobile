@@ -18,14 +18,25 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import type { ReactNode } from 'react'
-import { clockIn, clockOut, markHoliday, reset, takeLeave, takeLeaveRange, unmarkHoliday, workFromHome, type Change } from './actions.ts'
+import {
+  clockIn,
+  clockOut,
+  markHoliday,
+  recordWork,
+  reset,
+  takeLeave,
+  takeLeaveRange,
+  unmarkHoliday,
+  workFromHome,
+  type Change,
+} from './actions.ts'
 import { App } from './App.tsx'
 import { logFile, settingsFile } from './paths.ts'
 import { readSettings } from './settings.ts'
 import { readLog, replaceLog, setDay, setDays } from './store.ts'
 import { applyTheme, color } from './theme.ts'
 import { pendingUpdate, refreshCache, selfUpdate } from './update.ts'
-import { MonthView, Status, YearView } from './views.tsx'
+import { MonthView, Status, WorkedHolidays, YearView } from './views.tsx'
 
 declare const __VERSION__: string
 const version = __VERSION__
@@ -49,6 +60,11 @@ const help = `Logbook: attendance and leave from the terminal. Shares its log wi
                                   Weekends are always holidays; clocking in on one counts the same way
   logbook holiday --remove [--date YYYY-MM-DD]
                                   unmark a holiday
+  logbook worked [TEXT] [--link URL]... [--date YYYY-MM-DD] [--clear]
+                                  on a worked holiday or weekend (default today), note what you worked
+                                  on and link the proof (GitHub pull requests, commits); TEXT and the
+                                  --link list each replace what was there; --clear removes both
+  logbook holidays [YYYY]         every holiday worked in a year, with its work log and links
   logbook reset [--date YYYY-MM-DD]
                                   start today over, or remove leave or a holiday on another day
   logbook month [YYYY-MM]         a month's calendar
@@ -65,8 +81,9 @@ Log file: ${logFile()} (set LOGBOOK_FILE to use another).`
 
 class Problem extends Error {}
 
-function print(node: ReactNode) {
-  process.stdout.write(`${renderToString(node, { columns: Math.min(process.stdout.columns || 80, 80) })}\n`)
+// `columns` defaults to the panel's width; a list of links passes more so no URL is broken across lines.
+function print(node: ReactNode, columns = Math.min(process.stdout.columns || 80, 80)) {
+  process.stdout.write(`${renderToString(node, { columns })}\n`)
 }
 
 function say(change: Change) {
@@ -112,6 +129,8 @@ async function run(argv: string[]) {
       note: { type: 'string', default: '' },
       replace: { type: 'boolean', default: false },
       remove: { type: 'boolean', default: false },
+      link: { type: 'string', multiple: true },
+      clear: { type: 'boolean', default: false },
       month: { type: 'string' },
       year: { type: 'string' },
       from: { type: 'string' },
@@ -176,6 +195,18 @@ async function run(argv: string[]) {
       // The name may be quoted or not: `logbook holiday New Year` and `logbook holiday "New Year"` are the same.
       const name = positionals.slice(1).join(' ')
       return change(file, date, (days) => markHoliday(days[date], name, values.replace ?? false))
+    }
+    case 'worked': {
+      const date = dateOption(values.date, today)
+      if (values.clear) return change(file, date, (days) => recordWork(date, days[date], '', []))
+      const text = positionals.slice(1).join(' ')
+      if (!text && !values.link) throw new Problem('Say what you worked on, add --link URL, or both.')
+      return change(file, date, (days) => recordWork(date, days[date], text || undefined, values.link))
+    }
+    case 'holidays': {
+      const year = Number(arg ?? today.slice(0, 4))
+      if (!Number.isInteger(year) || year < 1000) throw new Problem(`${arg} is not a year.`)
+      return print(<WorkedHolidays days={await readLog(file)} year={year} />, 1000)
     }
     case 'reset': {
       const date = dateOption(values.date, today)

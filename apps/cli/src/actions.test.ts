@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { leaveDates } from '@logbook/core'
-import { clockIn, clockOut, markHoliday, reset, takeLeave, takeLeaveRange, unmarkHoliday, workFromHome, type Change } from './actions.ts'
+import {
+  clockIn,
+  clockOut,
+  markHoliday,
+  parseLinks,
+  recordWork,
+  reset,
+  takeLeave,
+  takeLeaveRange,
+  unmarkHoliday,
+  workFromHome,
+  type Change,
+} from './actions.ts'
 
 const now = '12:00'
 
@@ -79,4 +91,24 @@ test('marking a holiday keeps a worked day, replaces leave only when asked, and 
   assert.deepEqual(written(unmarkHoliday({ kind: 'office', in: '09:00', holiday: true })), { kind: 'office', in: '09:00' })
   assert.equal(written(unmarkHoliday({ kind: 'holiday' })), null)
   assert.equal(unmarkHoliday({ kind: 'wfh' }).ok, false)
+})
+
+test('a work log only goes on a worked holiday or weekend, takes real links, and can be cleared', () => {
+  const pr = 'https://github.com/owner/repo/pull/12'
+  const commit = 'https://github.com/owner/repo/commit/abc123'
+  // Thu 5 Nov 2026 is a weekday, Sat 7 Nov a weekend.
+  assert.equal(recordWork('2026-11-05', { kind: 'office', in: '09:00' }, 'fix', undefined).ok, false)
+  assert.equal(recordWork('2026-11-05', { kind: 'holiday' }, 'fix', undefined).ok, false)
+  assert.equal(recordWork('2026-11-07', { kind: 'wfh' }, undefined, ['repo#12']).ok, false)
+  assert.deepEqual(parseLinks(` ${pr}, ${commit}  ${pr} `), [pr, commit, pr])
+  const logged = written(recordWork('2026-11-07', { kind: 'wfh' }, '  release fix ', parseLinks(`${pr} ${commit} ${pr}`)))
+  assert.deepEqual(logged, { kind: 'wfh', work: 'release fix', links: [pr, commit] })
+  // Only what is given changes; empty values clear.
+  assert.deepEqual(written(recordWork('2026-11-05', { kind: 'office', holiday: true, work: 'a', links: [pr] }, 'b', undefined)), {
+    kind: 'office',
+    holiday: true,
+    work: 'b',
+    links: [pr],
+  })
+  assert.deepEqual(written(recordWork('2026-11-07', { kind: 'wfh', work: 'a', links: [pr] }, '', [])), { kind: 'wfh' })
 })
