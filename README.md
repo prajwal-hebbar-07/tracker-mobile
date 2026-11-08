@@ -63,6 +63,8 @@ Updates: the widget checks the release feed at launch and every six hours. When 
 
 `logbook` opens a full-screen view with the same pages as the widget: Tab and Shift+Tab or 1–4 switch between Today, Month, Year and More, each page lists its keys, `q` quits. On Month, `r` starts a range at the selected day; move to the other end, `w` counts weekends, and `l` asks for the type and a note and saves leave on every day in it, as the phone's **Plan leave in advance** does. More also has **Erase all data**, which empties the log shared with the widget once you type `erase`.
 
+**Holidays**: `f` on Today or on a day in Month marks it as a holiday, with an optional name (Diwali, New Year); `f` again renames it and `d` removes it. Weekends are always holidays. Clocking in or working from home on a holiday keeps it marked: the day counts as worked, its tile carries a `✦`, and Month and Year count holidays and the ones you worked. Leave ranges skip marked holidays, and a span of leave carries over them. The Mac widget shows marked holidays; only the CLI can set them for now.
+
 **Themes** (More → **Theme**): Logbook (the phone's colours, the default), Tokyo Night, Palenight, Catppuccin Mocha, Catppuccin Latte, Gruvbox Dark, Nord, Dracula, Rosé Pine, One Dark, Kanagawa and Everforest. Moving through the list repaints the view so you can see each one; Enter keeps it, `esc` goes back. The interactive view paints the theme's background over the whole terminal; one-shot commands use its colours on your terminal's own background.
 
 **Vim keys** (More → **Vim keys**): `h j k l` move everywhere arrows do, `H` and `L` go to the previous and next page, and since `h` and `l` only move, work from home becomes `w`, leave `m` and a range `v`. `esc` cancels a range instead of quitting; `q` quits.
@@ -77,8 +79,10 @@ logbook in [09:15]            # clock in now or at a time; again to fix the time
 logbook out [18:30]           # clock out
 logbook home                  # work from home today
 logbook leave sick --date 2026-11-12 --note "dentist"   # personal, early, sick or lop
-logbook leave personal --from 2026-12-22 --to 2026-12-31   # a range; weekends skipped unless --weekends
-logbook reset [--date …]      # start today over, or remove leave on another day
+logbook leave personal --from 2026-12-22 --to 2026-12-31   # a range; weekends skipped unless --weekends, holidays always
+logbook holiday "New Year" --date 2027-01-01   # mark a holiday (name optional; a worked day stays worked)
+logbook holiday --remove [--date …]   # unmark it
+logbook reset [--date …]      # start today over, or remove leave or a holiday on another day
 logbook month 2026-10         # a month's calendar
 logbook year                  # totals and months
 logbook export --year 2026    # Excel, also --month 2026-11 or --from 2024 --years 3

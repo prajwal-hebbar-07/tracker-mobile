@@ -44,7 +44,7 @@ export function DayEditor({ day, onChange }: { day?: Day; onChange: (day: Day | 
           <Text selectable style={text.body}>
             {day ? describeDay(day) : 'Nothing logged'}
           </Text>
-          {day?.kind === 'leave' && day.note ? (
+          {(day?.kind === 'leave' || day?.kind === 'holiday') && day.note ? (
             <Text selectable style={text.muted}>
               {day.note}
             </Text>

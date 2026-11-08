@@ -1,6 +1,6 @@
 import type { Cell, Sheet } from './xlsx'
 
-export type Kind = 'office' | 'wfh' | 'leave'
+export type Kind = 'office' | 'wfh' | 'leave' | 'holiday'
 
 export type LeaveType = 'personal' | 'sick' | 'early' | 'lop'
 
@@ -32,12 +32,14 @@ export type Day = {
   out?: string
   note?: string
   leaveType?: LeaveType
+  // On an office or home day: the date is a holiday that was worked anyway. A holiday's name is its note.
+  holiday?: true
 }
 
 export type Days = Record<string, Day>
 
 // Calendar colour for a day. An office day without both clock times is "open" and shown dimmer.
-export type Tone = 'none' | 'wfh' | 'leave' | 'office' | 'office-open'
+export type Tone = 'none' | 'wfh' | 'leave' | 'holiday' | 'office' | 'office-open'
 
 export type Summary = {
   office: number
@@ -50,6 +52,10 @@ export type Summary = {
   weekdaysMarked: number
   months: number[]
   leaves: string[]
+  // Days off for a holiday in the whole period, future ones included: marked holidays and weekends with nothing logged.
+  holiday: number
+  // Office and home days on a weekend or a marked holiday.
+  workedHolidays: number
 }
 
 export function isDateKey(value: string): boolean {
@@ -127,18 +133,29 @@ export function isWeekend(key: string): boolean {
   return weekday === 0 || weekday === 6
 }
 
-// Leave days in a picked range. Weekends are skipped unless asked for, since they are not working days.
-export function leaveDates(from: string, to: string, includeWeekends: boolean): string[] {
-  const dates = eachDate(from, to)
-  return includeWeekends ? dates : dates.filter((date) => !isWeekend(date))
+// Weekends are holidays, and so is any day marked as one, worked or not.
+export function isHoliday(key: string, day?: Day | null): boolean {
+  return isWeekend(key) || day?.kind === 'holiday' || day?.holiday === true
+}
+
+// An office or home day on a holiday: it counts as worked, and is still shown as a holiday.
+export function workedHoliday(key: string, day?: Day | null): boolean {
+  return (day?.kind === 'office' || day?.kind === 'wfh') && isHoliday(key, day)
+}
+
+// Leave days in a picked range. Marked holidays are always skipped, and weekends unless asked for, since neither is a
+// working day.
+export function leaveDates(days: Days, from: string, to: string, includeWeekends: boolean): string[] {
+  return eachDate(from, to).filter((date) => days[date]?.kind !== 'holiday' && (includeWeekends || !isWeekend(date)))
 }
 
 export type LeaveSpan = { from: string; to: string; count: number; leaveType?: LeaveType; note?: string }
 
-// A span continues across an empty weekend, so Fri + Mon off reads as one leave of 2 days.
+// A span continues across an empty weekend or a holiday, so Fri + Mon off reads as one leave of 2 days.
 function bridges(days: Days, lastTo: string, date: string): boolean {
   for (let cursor = addDays(lastTo, 1); cursor < date; cursor = addDays(cursor, 1)) {
-    if (!isWeekend(cursor) || days[cursor]) return false
+    const day = days[cursor]
+    if (day ? day.kind !== 'holiday' : !isWeekend(cursor)) return false
   }
   return true
 }
@@ -200,13 +217,14 @@ export function tone(day: Day | null): Tone {
   if (!day) return 'none'
   if (day.kind === 'wfh') return 'wfh'
   if (day.kind === 'leave') return 'leave'
+  if (day.kind === 'holiday') return 'holiday'
   return minutesBetween(day.in, day.out) == null ? 'office-open' : 'office'
 }
 
 export function cleanDay(value: unknown): Day | null {
   if (typeof value !== 'object' || value == null) return null
   const record = value as Record<string, unknown>
-  if (record.kind !== 'office' && record.kind !== 'wfh' && record.kind !== 'leave') return null
+  if (record.kind !== 'office' && record.kind !== 'wfh' && record.kind !== 'leave' && record.kind !== 'holiday') return null
   const day: Day = { kind: record.kind }
   if (typeof record.in === 'string') {
     const inn = normalizeTime(record.in)
@@ -223,6 +241,7 @@ export function cleanDay(value: unknown): Day | null {
   if (day.kind === 'leave' && leaveTypes.some((item) => item.id === record.leaveType)) {
     day.leaveType = record.leaveType as LeaveType
   }
+  if ((day.kind === 'office' || day.kind === 'wfh') && record.holiday === true) day.holiday = true
   return day
 }
 
@@ -253,24 +272,18 @@ export function weekOf(key: string): string[] {
   return Array.from({ length: 7 }, (_, index) => addDays(monday, index))
 }
 
-function rangeFor(prefix: string | undefined, today: string, days: Days): { from: string; to: string } | null {
+// The whole month or year `prefix` names; without one, the log's first day (or today) to its last (or today).
+function periodFor(prefix: string | undefined, today: string, days: Days): { from: string; to: string } | null {
   if (!prefix) {
     const keys = Object.keys(days).sort()
-    const from = keys[0] && keys[0] < today ? keys[0] : today
-    return { from, to: today }
+    const first = keys[0]
+    const last = keys[keys.length - 1]
+    return { from: first && first < today ? first : today, to: last && last > today ? last : today }
   }
-  if (/^\d{4}$/.test(prefix)) {
-    const from = `${prefix}-01-01`
-    const end = `${prefix}-12-31`
-    const to = end < today ? end : today
-    return to < from ? null : { from, to }
-  }
+  if (/^\d{4}$/.test(prefix)) return { from: `${prefix}-01-01`, to: `${prefix}-12-31` }
   if (/^\d{4}-\d{2}$/.test(prefix)) {
     const [year, month] = prefix.split('-').map(Number)
-    const from = `${prefix}-01`
-    const end = dateKey(new Date(year, month, 0))
-    const to = end < today ? end : today
-    return to < from ? null : { from, to }
+    return { from: `${prefix}-01`, to: dateKey(new Date(year, month, 0)) }
   }
   return null
 }
@@ -287,15 +300,18 @@ export function summarize(days: Days, opts: { today: string; prefix?: string }):
     weekdaysMarked: 0,
     months: Array.from({ length: 12 }, () => 0),
     leaves: [],
+    holiday: 0,
+    workedHolidays: 0,
   }
 
   for (const [date, day] of Object.entries(days)) {
     if (opts.prefix && !date.startsWith(opts.prefix)) continue
+    if (workedHoliday(date, day)) summary.workedHolidays += 1
     if (day.kind === 'wfh') summary.wfh += 1
     else if (day.kind === 'leave') {
       summary.leave += 1
       summary.leaves.push(date)
-    } else {
+    } else if (day.kind === 'office') {
       summary.office += 1
       const mins = minutesBetween(day.in, day.out)
       if (mins == null) summary.officeMissing += 1
@@ -308,12 +324,15 @@ export function summarize(days: Days, opts: { today: string; prefix?: string }):
   }
 
   summary.leaves.sort()
-  const range = rangeFor(opts.prefix, opts.today, days)
-  if (!range) return summary
-  for (let cursor = range.from; cursor <= range.to; cursor = addDays(cursor, 1)) {
-    if (isWeekend(cursor)) continue
+  const period = periodFor(opts.prefix, opts.today, days)
+  if (!period) return summary
+  // Weekdays only count up to today, and a holiday is not one even when it was worked.
+  for (let cursor = period.from; cursor <= period.to; cursor = addDays(cursor, 1)) {
+    const day = days[cursor]
+    if (day ? day.kind === 'holiday' : isWeekend(cursor)) summary.holiday += 1
+    if (cursor > opts.today || isHoliday(cursor, day)) continue
     summary.weekdays += 1
-    if (days[cursor]) summary.weekdaysMarked += 1
+    if (day) summary.weekdaysMarked += 1
   }
   return summary
 }
@@ -330,14 +349,21 @@ export function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? '' : 's'}`
 }
 
-// One line describing a day, used by lists and shared reports.
+// One line describing a day, used by lists and shared reports. A holiday's name is its note, shown beside this.
 export function describeDay(day: Day): string {
-  if (day.kind === 'wfh') return 'Work from home'
+  if (day.kind === 'holiday') return 'Holiday'
   if (day.kind === 'leave') return leaveLabel(day.leaveType)
+  const on = day.holiday ? ' on a holiday' : ''
+  if (day.kind === 'wfh') return `Work from home${on}`
   const mins = minutesBetween(day.in, day.out)
-  if (day.in && day.out) return `Office ${day.in}–${day.out}${mins == null ? '' : ` (${formatMinutes(mins)})`}`
-  if (day.in) return `Office from ${day.in}`
-  return 'Office'
+  if (day.in && day.out) return `Office ${day.in}–${day.out}${mins == null ? '' : ` (${formatMinutes(mins)})`}${on}`
+  if (day.in) return `Office from ${day.in}${on}`
+  return `Office${on}`
+}
+
+// "Holidays 10", and how many were worked when any were.
+function holidayLine(summary: Summary): string {
+  return `Holidays ${summary.holiday}${summary.workedHolidays ? ` · worked on ${plural(summary.workedHolidays, 'holiday')}` : ''}`
 }
 
 export function monthReport(days: Days, year: number, monthIndex: number, today: string): string {
@@ -346,6 +372,7 @@ export function monthReport(days: Days, year: number, monthIndex: number, today:
   const lines = [
     `Attendance · ${formatMonth(year, monthIndex)}`,
     `Office ${summary.office} (${formatMinutes(summary.minutes)}) · Home ${summary.wfh} · Leave ${summary.leave}`,
+    holidayLine(summary),
     `Weekdays logged ${summary.weekdaysMarked} of ${summary.weekdays}`,
     '',
   ]
@@ -366,6 +393,7 @@ export function yearReport(days: Days, year: number, today: string): string {
   const lines = [
     `Attendance · ${year}`,
     `Office ${summary.office} (${formatMinutes(summary.minutes)}) · Home ${summary.wfh} · Leave ${summary.leave}`,
+    holidayLine(summary),
     `Weekdays logged ${summary.weekdaysMarked} of ${summary.weekdays}`,
     '',
     'By month',
@@ -448,11 +476,13 @@ function excelTime(value?: string): Cell {
 
 const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// An empty past weekday reads "Not logged"; an empty day still to come stays blank.
+const statusNames: Record<Kind, string> = { office: 'Office', wfh: 'Home', leave: 'Leave', holiday: 'Holiday' }
+
+// An empty past weekday reads "Not logged"; an empty day still to come stays blank. A worked holiday says so.
 function excelRow(date: string, day: Day | undefined, today: string): Cell[] {
   const start: Cell[] = [{ value: excelDate(date), format: 'date' }, weekdayNames[parseDateKey(date).getDay()]]
   if (!day) return [...start, isWeekend(date) ? 'Weekend' : date < today ? 'Not logged' : null]
-  const status = day.kind === 'office' ? 'Office' : day.kind === 'wfh' ? 'Home' : 'Leave'
+  const status = `${statusNames[day.kind]}${workedHoliday(date, day) ? ' (holiday)' : ''}`
   const leaveType = day.kind === 'leave' ? (leaveTypes.find((item) => item.id === day.leaveType)?.label ?? null) : null
   const office = day.kind === 'office'
   const mins = office ? minutesBetween(day.in, day.out) : null
@@ -468,7 +498,7 @@ function excelRow(date: string, day: Day | undefined, today: string): Cell[] {
 }
 
 const excelHeader = ['Date', 'Day', 'Status', 'Leave type', 'In', 'Out', 'Hours', 'Note']
-const excelWidths = [12, 6, 12, 16, 8, 8, 8, 48]
+const excelWidths = [12, 6, 16, 16, 8, 8, 8, 48]
 
 function excelRows(days: Days, from: string, to: string, weekends: boolean, today: string): Cell[][] {
   return eachDate(from, to)

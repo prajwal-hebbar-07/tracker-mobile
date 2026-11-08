@@ -8,6 +8,7 @@ const toneWords: Record<Tone, string> = {
   none: 'nothing recorded',
   wfh: 'work from home',
   leave: 'leave',
+  holiday: 'holiday',
   office: 'office',
   'office-open': 'office, clock times incomplete',
 }

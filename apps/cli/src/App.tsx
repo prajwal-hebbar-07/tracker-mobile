@@ -7,6 +7,7 @@ import {
   formatLong,
   formatRange,
   formatShort,
+  isWeekend,
   leaveDates,
   leaveTypes,
   maxExcelYears,
@@ -26,7 +27,19 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { useContext, useEffect, useRef, useState } from 'react'
-import { clockIn, clockOut, overwrites, reset, takeLeave, takeLeaveRange, workFromHome, type Change, type RangeChange } from './actions.ts'
+import {
+  clockIn,
+  clockOut,
+  markHoliday,
+  overwrites,
+  reset,
+  takeLeave,
+  takeLeaveRange,
+  unmarkHoliday,
+  workFromHome,
+  type Change,
+  type RangeChange,
+} from './actions.ts'
 import { readLog, replaceLog, setDays as saveDays } from './store.ts'
 import { writeSettings, type Settings } from './settings.ts'
 import { applyTheme, color, findTheme, themes } from './theme.ts'
@@ -347,9 +360,23 @@ function askLeave(ask: PageProps['ask'], apply: PageProps['apply'], date: string
   })
 }
 
+// Marks a holiday, or renames one, after asking for an optional name. Leave is only replaced once confirmed.
+function askHoliday(ask: PageProps['ask'], apply: PageProps['apply'], date: string, day: Day | undefined) {
+  const marked = day?.kind === 'holiday' || day?.holiday === true
+  const name = (replace: boolean) =>
+    ask({
+      kind: 'text',
+      label: 'Holiday name (optional), Enter to save',
+      initial: marked ? (day?.note ?? '') : '',
+      onSubmit: (value) => apply(date, markHoliday(day, value, replace)),
+    })
+  if (day?.kind === 'leave') return ask({ kind: 'confirm', label: `Replace ${describeDay(day)} with a holiday?`, onYes: () => name(true) })
+  name(false)
+}
+
 // With vim keys on, h and l only ever move, so the actions that use them take other letters.
 function actionKeys(vim: boolean) {
-  return { home: vim ? 'w' : 'h', leave: vim ? 'm' : 'l', range: vim ? 'v' : 'r' }
+  return { home: vim ? 'w' : 'h', leave: vim ? 'm' : 'l', range: vim ? 'v' : 'r', holiday: 'f' }
 }
 
 function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
@@ -359,10 +386,13 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
   useInput(
     (input) => {
       const at = timeNow(now)
+      // A holiday can still be worked: clocking in or working from home keeps it marked.
       if (input === 'i') apply(today, clockIn(day, undefined, at))
       if (input === 'o') apply(today, clockOut(day, undefined, at))
       if (input === keyOf.home) apply(today, workFromHome(day))
       if (input === keyOf.leave && !day) askLeave(ask, apply, today, day, false)
+      if (input === keyOf.holiday && day?.kind !== 'leave') askHoliday(ask, apply, today, day)
+      if (input === 'd' && (day?.kind === 'holiday' || day?.holiday)) apply(today, unmarkHoliday(day))
       if (input === 's' && day) apply(today, reset(day, true))
       if (input === 'e' && office?.in) {
         ask({ kind: 'text', label: 'Clock-in time (HH:MM)', initial: office.in, onSubmit: (value) => apply(today, clockIn(day, value, timeNow())) })
@@ -373,30 +403,36 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
     },
     { isActive: active },
   )
+  // Worked days can be marked as a holiday (or renamed, or unmarked) without losing the work.
+  const holidayKeys: [string, string][] = day?.holiday
+    ? [
+        [keyOf.holiday, 'rename'],
+        ['d', 'not holiday'],
+      ]
+    : [[keyOf.holiday, 'holiday']]
   const keys: [string, string][] = !day
     ? [
         ['i', 'clock in'],
         [keyOf.home, 'from home'],
         [keyOf.leave, 'leave'],
+        [keyOf.holiday, 'holiday'],
       ]
-    : office?.in && !office.out
+    : day.kind === 'holiday'
       ? [
-          ['o', 'clock out'],
-          ['e', 'edit in'],
-          ['s', 'start over'],
+          ['i', 'clock in'],
+          [keyOf.home, 'from home'],
+          [keyOf.holiday, 'rename'],
+          ['d', 'remove'],
         ]
-      : office?.out
-        ? [
-            ['e', 'edit in'],
-            ['u', 'edit out'],
-            ['s', 'start over'],
-          ]
-        : office
-          ? [
-              ['i', 'clock in'],
-              ['s', 'start over'],
-            ]
-          : [['s', 'start over']]
+      : office?.in && !office.out
+        ? [['o', 'clock out'], ['e', 'edit in'], ...holidayKeys, ['s', 'start over']]
+        : office?.out
+          ? [['e', 'edit in'], ['u', 'edit out'], ...holidayKeys, ['s', 'start over']]
+          : office
+            ? [['i', 'clock in'], ...holidayKeys, ['s', 'start over']]
+            : day.kind === 'wfh'
+              ? [...holidayKeys, ['s', 'start over']]
+              : [['s', 'start over']]
   return (
     <Box flexDirection="column">
       <Status day={day} now={now} today={today} />
@@ -451,11 +487,12 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
   const month = Number(selected.slice(5, 7)) - 1
   const day = days[selected]
   const range = anchor ? (anchor <= selected ? { from: anchor, to: selected } : { from: selected, to: anchor }) : null
-  const planned = range ? leaveDates(range.from, range.to, weekends) : []
+  const planned = range ? leaveDates(days, range.from, range.to, weekends) : []
   const weekCount = monthCells(year, month).length / 7
-  // Measured: the panel needs 16 rows besides the grid, 19 with a prompt open (whose keys and details it hides).
+  // Measured: the panel needs 16 rows besides the grid, 19 with a prompt open (whose keys and details it hides). Two
+  // more are kept for a day's keys and the month's summary, which can each wrap onto a second line.
   // The grid is a header plus 3 rows a week, and a blank row between weeks only when that still fits.
-  const spaced = rows >= (active ? 16 : 19) + 1 + weekCount * 3 + (weekCount - 1)
+  const spaced = rows >= (active ? 18 : 19) + 1 + weekCount * 3 + (weekCount - 1)
   const shiftMonth = (delta: number) => {
     const next = new Date(year, month + delta, 1)
     setSelected(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`)
@@ -486,9 +523,14 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
           askLeave(ask, apply, selected, day, false)
         }
       }
+      if (input === keyOf.holiday) askHoliday(ask, apply, selected, day)
       if (input === 'd' && day?.kind === 'leave') {
         ask({ kind: 'confirm', label: 'Remove this leave?', onYes: () => apply(selected, reset(day, false)) })
       }
+      if (input === 'd' && day?.kind === 'holiday') {
+        ask({ kind: 'confirm', label: 'Remove this holiday?', onYes: () => apply(selected, reset(day, false)) })
+      }
+      if (input === 'd' && day?.holiday) apply(selected, unmarkHoliday(day))
     },
     { isActive: active },
   )
@@ -512,7 +554,9 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
           ['[ ]', 'month'],
           ['t', 'today'],
           [keyOf.leave, 'leave'],
-          ...(day?.kind === 'leave' ? ([['d', 'remove']] as [string, string][]) : []),
+          [keyOf.holiday, day?.kind === 'holiday' || day?.holiday ? 'rename' : 'holiday'],
+          ...(day?.kind === 'leave' || day?.kind === 'holiday' ? ([['d', 'remove']] as [string, string][]) : []),
+          ...(day?.holiday ? ([['d', 'not holiday']] as [string, string][]) : []),
           [keyOf.range, 'range'],
         ]
   return (
@@ -550,8 +594,8 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
               {formatLong(selected)}
             </Text>
             {' · '}
-            {day ? describeDay(day) : 'Nothing logged'}
-            {day?.kind === 'leave' && day.note ? ` — ${day.note}` : ''}
+            {day ? describeDay(day) : isWeekend(selected) ? 'Weekend, a holiday' : 'Nothing logged'}
+            {day?.note ? ` — ${day.note}` : ''}
           </Text>
           <MonthSummary days={days} year={year} month={month} today={today} />
         </Box>

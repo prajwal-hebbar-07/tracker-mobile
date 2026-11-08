@@ -96,7 +96,7 @@ function DayPanel({ date, day, onChange }: { date: string; day?: Day; onChange: 
       <div className="record">
         <strong style={meta ? { color: meta.tint } : undefined}>{formatLong(date)}</strong>
         <div>{day ? describeDay(day) : 'Nothing logged'}</div>
-        {day?.kind === 'leave' && day.note ? <div className="muted">{day.note}</div> : null}
+        {(day?.kind === 'leave' || day?.kind === 'holiday') && day.note ? <div className="muted">{day.note}</div> : null}
       </div>
       {day?.kind === 'leave' ? (
         <div className="row">

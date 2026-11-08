@@ -18,7 +18,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import type { ReactNode } from 'react'
-import { clockIn, clockOut, reset, takeLeave, takeLeaveRange, workFromHome, type Change } from './actions.ts'
+import { clockIn, clockOut, markHoliday, reset, takeLeave, takeLeaveRange, unmarkHoliday, workFromHome, type Change } from './actions.ts'
 import { App } from './App.tsx'
 import { logFile, settingsFile } from './paths.ts'
 import { readSettings } from './settings.ts'
@@ -41,9 +41,16 @@ const help = `Logbook: attendance and leave from the terminal. Shares its log wi
                                   TYPE: ${leaveTypes.map((item) => item.id).join(', ')}
   logbook leave TYPE --from YYYY-MM-DD [--to YYYY-MM-DD] [--weekends] [--note TEXT] [--replace]
                                   leave on every working day of a range (--from defaults to today,
-                                  --to to --from); --weekends counts Saturday and Sunday too
+                                  --to to --from); --weekends counts Saturday and Sunday too;
+                                  holidays are always skipped
+  logbook holiday [NAME] [--date YYYY-MM-DD] [--replace]
+                                  mark a day as a holiday (default today); a worked day stays worked,
+                                  counted as worked on a holiday; --replace turns leave into a holiday.
+                                  Weekends are always holidays; clocking in on one counts the same way
+  logbook holiday --remove [--date YYYY-MM-DD]
+                                  unmark a holiday
   logbook reset [--date YYYY-MM-DD]
-                                  start today over, or remove leave on another day
+                                  start today over, or remove leave or a holiday on another day
   logbook month [YYYY-MM]         a month's calendar
   logbook year [YYYY]             a year's totals and months
   logbook export [--month YYYY-MM | --year YYYY | --from YYYY --years N]
@@ -104,6 +111,7 @@ async function run(argv: string[]) {
       weekends: { type: 'boolean', default: false },
       note: { type: 'string', default: '' },
       replace: { type: 'boolean', default: false },
+      remove: { type: 'boolean', default: false },
       month: { type: 'string' },
       year: { type: 'string' },
       from: { type: 'string' },
@@ -157,9 +165,17 @@ async function run(argv: string[]) {
       const from = dateOption(values.from, today)
       const to = dateOption(values.to, from)
       if (to < from) throw new Problem(`--to ${to} is before --from ${from}.`)
-      const result = takeLeaveRange(await readLog(file), leaveDates(from, to, values.weekends ?? false), type, note, replace)
+      const days = await readLog(file)
+      const result = takeLeaveRange(days, leaveDates(days, from, to, values.weekends ?? false), type, note, replace)
       if (result.ok) await setDays(file, result.days)
       return say(result.ok ? { ok: true, day: null, message: result.message } : result)
+    }
+    case 'holiday': {
+      const date = dateOption(values.date, today)
+      if (values.remove) return change(file, date, (days) => unmarkHoliday(days[date]))
+      // The name may be quoted or not: `logbook holiday New Year` and `logbook holiday "New Year"` are the same.
+      const name = positionals.slice(1).join(' ')
+      return change(file, date, (days) => markHoliday(days[date], name, values.replace ?? false))
     }
     case 'reset': {
       const date = dateOption(values.date, today)

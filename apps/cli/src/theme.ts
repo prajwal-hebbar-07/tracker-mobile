@@ -12,9 +12,10 @@ type Palette = {
   office: string
   wfh: string
   leave: string
+  holiday: string // a marked holiday off, and the mark on a worked one
   danger: string
   success: string
-  ink: string // text on a filled accent, office, home or leave colour
+  ink: string // text on a filled accent, office, home, leave or holiday colour
   open: string // a day clocked in but not out yet
 }
 
@@ -37,12 +38,13 @@ export const themes: Theme[] = [
       office: '#E8A93E',
       wfh: '#7EB8A6',
       leave: '#E2806C',
+      holiday: '#A99BD9',
       danger: '#EE7B6B',
       success: '#8CC48B',
       ink: '#16140F',
       open: '#5B4824',
     },
-    tone: { wfh: '#5F9A88', leave: '#C9705F' },
+    tone: { wfh: '#5F9A88', leave: '#C9705F', holiday: '#8B7FC0' },
   },
   {
     id: 'tokyonight',
@@ -59,6 +61,7 @@ export const themes: Theme[] = [
       office: '#E0AF68',
       wfh: '#73DACA',
       leave: '#F7768E',
+      holiday: '#BB9AF7',
       danger: '#F7768E',
       success: '#9ECE6A',
       ink: '#1A1B26',
@@ -80,6 +83,7 @@ export const themes: Theme[] = [
       office: '#FFCB6B',
       wfh: '#89DDFF',
       leave: '#F78C6C',
+      holiday: '#82AAFF',
       danger: '#FF5370',
       success: '#C3E88D',
       ink: '#292D3E',
@@ -101,6 +105,7 @@ export const themes: Theme[] = [
       office: '#F9E2AF',
       wfh: '#94E2D5',
       leave: '#FAB387',
+      holiday: '#89B4FA',
       danger: '#F38BA8',
       success: '#A6E3A1',
       ink: '#1E1E2E',
@@ -122,6 +127,7 @@ export const themes: Theme[] = [
       office: '#DF8E1D',
       wfh: '#179299',
       leave: '#FE640B',
+      holiday: '#1E66F5',
       danger: '#D20F39',
       success: '#40A02B',
       ink: '#EFF1F5',
@@ -143,6 +149,7 @@ export const themes: Theme[] = [
       office: '#FABD2F',
       wfh: '#8EC07C',
       leave: '#FE8019',
+      holiday: '#D3869B',
       danger: '#FB4934',
       success: '#B8BB26',
       ink: '#282828',
@@ -164,6 +171,7 @@ export const themes: Theme[] = [
       office: '#EBCB8B',
       wfh: '#8FBCBB',
       leave: '#D08770',
+      holiday: '#B48EAD',
       danger: '#BF616A',
       success: '#A3BE8C',
       ink: '#2E3440',
@@ -185,6 +193,7 @@ export const themes: Theme[] = [
       office: '#FFB86C',
       wfh: '#8BE9FD',
       leave: '#FF79C6',
+      holiday: '#F1FA8C',
       danger: '#FF5555',
       success: '#50FA7B',
       ink: '#282A36',
@@ -206,6 +215,7 @@ export const themes: Theme[] = [
       office: '#F6C177',
       wfh: '#9CCFD8',
       leave: '#EBBCBA',
+      holiday: '#908CAA',
       danger: '#EB6F92',
       success: '#9CCFD8',
       ink: '#191724',
@@ -227,6 +237,7 @@ export const themes: Theme[] = [
       office: '#E5C07B',
       wfh: '#56B6C2',
       leave: '#D19A66',
+      holiday: '#C678DD',
       danger: '#E06C75',
       success: '#98C379',
       ink: '#282C34',
@@ -248,6 +259,7 @@ export const themes: Theme[] = [
       office: '#E6C384',
       wfh: '#7AA89F',
       leave: '#FFA066',
+      holiday: '#957FB8',
       danger: '#E46876',
       success: '#98BB6C',
       ink: '#1F1F28',
@@ -269,6 +281,7 @@ export const themes: Theme[] = [
       office: '#DBBC7F',
       wfh: '#83C092',
       leave: '#E69875',
+      holiday: '#D699B6',
       danger: '#E67E80',
       success: '#A7C080',
       ink: '#2D353B',
@@ -286,18 +299,18 @@ export function findTheme(id: string | undefined): Theme | undefined {
 // The colours in use. Views read these while rendering, so `applyTheme` followed by a re-render repaints everything;
 // one-shot commands apply the saved theme before they print.
 export const color: Palette = { ...themes[0].palette }
-export const toneColor: Record<Tone, string> = { none: '', wfh: '', leave: '', office: '', 'office-open': '' }
+export const toneColor: Record<Tone, string> = { none: '', wfh: '', leave: '', holiday: '', office: '', 'office-open': '' }
 
 export function applyTheme(id: string): void {
   const theme = findTheme(id) ?? themes[0]
   Object.assign(color, theme.palette)
-  const { surface, wfh, leave, office, open } = theme.palette
-  Object.assign(toneColor, { none: surface, wfh, leave, office, 'office-open': open }, theme.tone)
+  const { surface, wfh, leave, holiday, office, open } = theme.palette
+  Object.assign(toneColor, { none: surface, wfh, leave, holiday, office, 'office-open': open }, theme.tone)
 }
 
 applyTheme(defaultTheme)
 
-export const kindGlyph: Record<Kind, string> = { office: '■', wfh: '⌂', leave: '☀' }
+export const kindGlyph: Record<Kind, string> = { office: '■', wfh: '⌂', leave: '☀', holiday: '✦' }
 
 // `a` laid over `b` at `amount` (0 to 1): soft tints such as a range of leave being picked.
 export function mix(a: string, b: string, amount: number): string {

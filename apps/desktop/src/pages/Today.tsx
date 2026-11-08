@@ -34,11 +34,13 @@ export function Today({ log, now }: { log: Log; now: Date }) {
       ? { ...kindMeta.wfh, title: 'Working from home', sub: 'Counts as a worked day' }
       : day.kind === 'leave'
         ? { ...kindMeta.leave, title: leaveLabel(day.leaveType), sub: 'On leave today' }
-        : {
-            ...kindMeta.office,
-            title: open ? 'Clocked in' : day.out ? 'Clocked out' : 'In office',
-            sub: open ? 'Timer is running' : day.out ? 'Day complete' : 'Not clocked in yet',
-          }
+        : day.kind === 'holiday'
+          ? { ...kindMeta.holiday, title: day.note ?? 'Holiday', sub: 'Not a working day' }
+          : {
+              ...kindMeta.office,
+              title: open ? 'Clocked in' : day.out ? 'Clocked out' : 'In office',
+              sub: open ? 'Timer is running' : day.out ? 'Day complete' : 'Not clocked in yet',
+            }
 
   return (
     <div className="stack">

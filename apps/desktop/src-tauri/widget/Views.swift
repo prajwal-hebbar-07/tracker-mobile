@@ -17,6 +17,7 @@ private enum Palette {
   static let office = rgb(0xe8a93e)
   static let wfh = rgb(0x7eb8a6)
   static let leave = rgb(0xe2806c)
+  static let holiday = rgb(0xa99bd9)
   static let danger = rgb(0xee7b6b)
   static let background = LinearGradient(colors: [rgb(0x22261f), rgb(0x16140f)], startPoint: .top, endPoint: .bottom)
 }
@@ -42,6 +43,8 @@ private struct Status {
       self.init(icon: "house", tint: Palette.wfh, title: "Working from home", sub: "Counts as a worked day")
     case .leave:
       self.init(icon: "beach.umbrella", tint: Palette.leave, title: leaveLabel(day.leaveType), sub: day.note ?? "On leave today")
+    case .holiday:
+      self.init(icon: "star", tint: Palette.holiday, title: day.note ?? "Holiday", sub: "Not a working day")
     case .office:
       let open = day.inTime != nil && day.outTime == nil
       self.init(

@@ -58,12 +58,14 @@ export function TodayCard() {
       ? { icon: kindMeta.wfh.icon, tint: kindMeta.wfh.tint, title: 'Working from home', sub: 'Counts as a worked day' }
       : day.kind === 'leave'
         ? { icon: kindMeta.leave.icon, tint: kindMeta.leave.tint, title: leaveLabel(day.leaveType), sub: 'On leave today' }
-        : {
-            icon: kindMeta.office.icon,
-            tint: kindMeta.office.tint,
-            title: open ? 'Clocked in' : day.out ? 'Clocked out' : 'In office',
-            sub: open ? 'Timer is running' : day.out ? 'Day complete' : 'Not clocked in yet',
-          }
+        : day.kind === 'holiday'
+          ? { icon: kindMeta.holiday.icon, tint: kindMeta.holiday.tint, title: day.note ?? 'Holiday', sub: 'Not a working day' }
+          : {
+              icon: kindMeta.office.icon,
+              tint: kindMeta.office.tint,
+              title: open ? 'Clocked in' : day.out ? 'Clocked out' : 'In office',
+              sub: open ? 'Timer is running' : day.out ? 'Day complete' : 'Not clocked in yet',
+            }
 
   return (
     <Card>

@@ -9,6 +9,7 @@
   --wfh: #7eb8a6;
   --leave: #e2806c;
   --leave-soft: #3a221d;
+  --holiday: #a99bd9;
   --ink: #16140f;
   --danger: #ee7b6b;
   --danger-soft: rgba(58, 31, 27, 0.85);
@@ -16,6 +17,7 @@
   --tone-none: rgba(28, 31, 26, 0.75);
   --tone-wfh: #5f9a88;
   --tone-leave: #c9705f;
+  --tone-holiday: #8b7fc0;
   --tone-office: #e8a93e;
   --tone-office-open: #5b4824;
   color-scheme: dark;
@@ -392,6 +394,10 @@ textarea {
 }
 .tone-leave {
   background: var(--tone-leave);
+}
+.tone-holiday {
+  background: var(--tone-holiday);
+  color: var(--ink);
 }
 .tone-office {
   background: var(--tone-office);

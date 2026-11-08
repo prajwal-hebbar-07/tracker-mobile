@@ -16,6 +16,7 @@ export const color = {
   wfh: '#7EB8A6',
   leave: '#E2806C',
   leaveSoft: '#3A221D',
+  holiday: '#A99BD9',
   ink: '#16140F',
   danger: '#EE7B6B',
   dangerSoft: '#3A1F1B',
@@ -28,18 +29,20 @@ export const toneColor: Record<Tone, string> = {
   none: '#1C1F1A',
   wfh: '#5F9A88',
   leave: '#C9705F',
+  holiday: '#8B7FC0',
   office: '#E8A93E',
   'office-open': '#5B4824',
 }
 
 export function inkFor(name: Tone): string {
-  return name === 'office' || name === 'wfh' ? color.ink : color.text
+  return name === 'office' || name === 'wfh' || name === 'holiday' ? color.ink : color.text
 }
 
 export const kindMeta: Record<Kind, { icon: IconName; tint: string }> = {
   office: { icon: 'office-building-outline', tint: color.office },
   wfh: { icon: 'home-outline', tint: color.wfh },
   leave: { icon: 'palm-tree', tint: color.leave },
+  holiday: { icon: 'calendar-star', tint: color.holiday },
 }
 
 export const leaveIcon: Record<LeaveType, IconName> = {

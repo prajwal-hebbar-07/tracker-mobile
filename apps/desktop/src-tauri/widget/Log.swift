@@ -5,7 +5,7 @@ import Foundation
 // minutesBetween, leaveLabel, summarize).
 
 enum Kind: String {
-  case office, wfh, leave
+  case office, wfh, leave, holiday
 }
 
 struct Day: Equatable {
@@ -145,6 +145,7 @@ func monthTotals(_ days: Days, containing date: Date) -> MonthTotals {
     switch day.kind {
     case .wfh: totals.wfh += 1
     case .leave: totals.leave += 1
+    case .holiday: break
     case .office:
       totals.office += 1
       totals.minutes += minutesBetween(day.inTime, day.outTime) ?? 0

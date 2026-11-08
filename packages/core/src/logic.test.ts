@@ -40,7 +40,7 @@ test('saved days drop junk and keep a readable log', () => {
       nope: { kind: 'office' },
       '2026-02-31': { kind: 'leave' },
       '2026-11-02': { kind: 'office', in: '9:05', out: '17:00', note: '  standup  ' },
-      '2026-11-03': { kind: 'holiday' },
+      '2026-11-03': { kind: 'party' },
     }),
     {
       '2026-11-02': { kind: 'office', in: '09:05', out: '17:00', note: 'standup' },
@@ -134,9 +134,9 @@ test('a leave span is the days you select, including the ends', () => {
 })
 
 test('leave skips weekends unless asked, and a span carries over an empty weekend', () => {
-  assert.deepEqual(leaveDates('2026-11-06', '2026-11-09', false), ['2026-11-06', '2026-11-09'])
-  assert.equal(leaveDates('2026-11-06', '2026-11-09', true).length, 4)
-  assert.deepEqual(leaveDates('2026-11-07', '2026-11-08', false), [])
+  assert.deepEqual(leaveDates({}, '2026-11-06', '2026-11-09', false), ['2026-11-06', '2026-11-09'])
+  assert.equal(leaveDates({}, '2026-11-06', '2026-11-09', true).length, 4)
+  assert.deepEqual(leaveDates({}, '2026-11-07', '2026-11-08', false), [])
   const friday = { kind: 'leave', leaveType: 'personal' } as const
   assert.deepEqual(leaveSpans({ '2026-11-06': friday, '2026-11-09': friday }), [
     { from: '2026-11-06', to: '2026-11-09', count: 2, leaveType: 'personal' },
@@ -146,6 +146,49 @@ test('leave skips weekends unless asked, and a span carries over an empty weeken
     leaveSpans({ '2026-11-06': friday, '2026-11-07': { kind: 'office' }, '2026-11-09': friday }).length,
     2,
   )
+})
+
+test('a marked holiday is never a leave day, and a leave span carries over it', () => {
+  const holiday = { kind: 'holiday', note: 'Diwali' } as const
+  const friday = { kind: 'leave', leaveType: 'personal' } as const
+  assert.deepEqual(leaveDates({ '2026-11-09': holiday }, '2026-11-06', '2026-11-10', true), [
+    '2026-11-06',
+    '2026-11-07',
+    '2026-11-08',
+    '2026-11-10',
+  ])
+  assert.deepEqual(leaveSpans({ '2026-11-06': friday, '2026-11-09': holiday, '2026-11-10': friday }), [
+    { from: '2026-11-06', to: '2026-11-10', count: 2, leaveType: 'personal' },
+  ])
+})
+
+test('holidays count weekends and marked days off; working one counts as worked, not as a weekday', () => {
+  // November 2026 has 9 weekend days. The 2nd is a holiday off, the 3rd a holiday worked from home, Sat 7th an office
+  // day, and Sun 8th a holiday logged as such.
+  const summary = summarize(
+    {
+      '2026-11-02': { kind: 'holiday', note: 'Diwali' },
+      '2026-11-03': { kind: 'wfh', holiday: true },
+      '2026-11-04': { kind: 'office', in: '09:00', out: '17:00' },
+      '2026-11-07': { kind: 'office', in: '10:00', out: '12:00' },
+      '2026-11-08': { kind: 'holiday' },
+    },
+    { today, prefix: '2026-11' },
+  )
+  assert.equal(summary.office, 2)
+  assert.equal(summary.wfh, 1)
+  assert.equal(summary.leave, 0)
+  // Weekends less the worked Saturday, plus the Monday off.
+  assert.equal(summary.holiday, 9 - 1 + 1)
+  assert.equal(summary.workedHolidays, 2)
+  // Up to Thu 5th: the 4th and 5th are the only working weekdays, and the 4th is logged.
+  assert.equal(summary.weekdays, 2)
+  assert.equal(summary.weekdaysMarked, 1)
+  assert.equal(tone({ kind: 'holiday' }), 'holiday')
+  assert.deepEqual(cleanDays({ '2026-11-03': { kind: 'wfh', holiday: true }, '2026-11-04': { kind: 'leave', holiday: true } }), {
+    '2026-11-03': { kind: 'wfh', holiday: true },
+    '2026-11-04': { kind: 'leave' },
+  })
 })
 
 test('CSV export quotes notes that would break a column', () => {
@@ -189,7 +232,7 @@ test('Excel export has a row for every day of each chosen year', () => {
   const [weekdays] = excelSheets(days, { from: 2026, years: 1, weekends: false, split: false }, today)
   assert.equal(weekdays.name, '2026')
   assert.equal(weekdays.rows.length, 261 + 1)
-  assert.ok(weekdays.rows.some((cells) => cells[1] === 'Sat' && cells[2] === 'Home'))
+  assert.ok(weekdays.rows.some((cells) => cells[1] === 'Sat' && cells[2] === 'Home (holiday)'))
 
   const [joined] = excelSheets(days, { from: 2024, years: 3, weekends: true, split: false }, today)
   assert.equal(joined.name, '2024-2026')

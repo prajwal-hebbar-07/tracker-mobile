@@ -1,6 +1,7 @@
 import { leaveTypes, type Kind, type LeaveType } from '@logbook/core'
 import {
   mdiBeach,
+  mdiCalendarStar,
   mdiCashRemove,
   mdiClockFast,
   mdiHomeOutline,
@@ -15,6 +16,7 @@ export const kindMeta: Record<Kind, { icon: string; tint: string }> = {
   office: { icon: mdiOfficeBuildingOutline, tint: 'var(--office)' },
   wfh: { icon: mdiHomeOutline, tint: 'var(--wfh)' },
   leave: { icon: mdiPalmTree, tint: 'var(--leave)' },
+  holiday: { icon: mdiCalendarStar, tint: 'var(--holiday)' },
 }
 
 const leaveIcon: Record<LeaveType, string> = {

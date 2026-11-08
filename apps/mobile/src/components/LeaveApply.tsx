@@ -31,7 +31,7 @@ export function LeaveApply({ start }: { start: string }) {
   const [weekends, setWeekends] = useState(false)
   const { days, setDay } = useDays()
   const [dialog, show] = useDialog()
-  const dates = leaveDates(from, to, weekends)
+  const dates = leaveDates(days, from, to, weekends)
   const overwrites = dates.filter((date) => days[date] && days[date].kind !== 'leave')
 
   function shift(delta: number) {
