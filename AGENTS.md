@@ -10,7 +10,7 @@ Expo ships breaking changes every SDK release. APIs you remember are likely rena
 
 ## Commands
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present). Install dependencies from the repository root (`npm install`); run Expo and EAS commands from `apps/mobile`.
+Install dependencies from the repository root (`npm install`); run Expo and EAS commands from `apps/mobile`.
 
 ```bash
 npx expo install <package>  # in apps/mobile; ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
@@ -22,8 +22,6 @@ npm run lint                # at the root; every workspace
 npm run typecheck           # at the root; every workspace
 ```
 
-Run lint, typecheck and tests before declaring any task done.
-
 ## Navigation & Routing
 
 - Use **Expo Router** for all navigation. Routes live in `apps/mobile/src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`, and logic that is not specific to the phone in `packages/core`.
@@ -32,7 +30,7 @@ Run lint, typecheck and tests before declaring any task done.
 
 ## Building with EAS
 
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
+Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `npx eas-cli@latest <command>`; substitute that for bare `eas` in docs examples.
 Docs: https://docs.expo.dev/eas/index.md
 
 ## Rules
