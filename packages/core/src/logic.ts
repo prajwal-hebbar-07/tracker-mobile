@@ -34,8 +34,8 @@ export type Day = {
   leaveType?: LeaveType
   // On an office or home day: the date is a holiday that was worked anyway. A holiday's name is its note.
   holiday?: true
-  // On an office or home day: what was worked on, with links (pull requests, commits) as proof. Kept for worked
-  // holidays, weekends included.
+  // On an office or home day: its notes, what was worked on, with links (pull requests, commits) as proof. A worked
+  // holiday's log (weekends included) is made of these.
   work?: string
   links?: string[]
 }

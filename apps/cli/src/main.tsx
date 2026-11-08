@@ -22,8 +22,8 @@ import {
   clockIn,
   clockOut,
   markHoliday,
-  recordWork,
   reset,
+  setNotes,
   takeLeave,
   takeLeaveRange,
   unmarkHoliday,
@@ -60,11 +60,12 @@ const help = `Logbook: attendance and leave from the terminal. Shares its log wi
                                   Weekends are always holidays; clocking in on one counts the same way
   logbook holiday --remove [--date YYYY-MM-DD]
                                   unmark a holiday
-  logbook worked [TEXT] [--link URL]... [--date YYYY-MM-DD] [--clear]
-                                  on a worked holiday or weekend (default today), note what you worked
-                                  on and link the proof (GitHub pull requests, commits); TEXT and the
-                                  --link list each replace what was there; --clear removes both
-  logbook holidays [YYYY]         every holiday worked in a year, with its work log and links
+  logbook note [TEXT] [--link URL]... [--date YYYY-MM-DD] [--clear]
+                                  notes on a logged day (default today): what you worked on, with links
+                                  as proof on a worked holiday or weekend (GitHub pull requests, commits);
+                                  on leave or a holiday off, its note. TEXT and the --link list each
+                                  replace what was there; --clear removes both
+  logbook holidays [YYYY]         every holiday worked in a year, with its notes and links
   logbook reset [--date YYYY-MM-DD]
                                   start today over, or remove leave or a holiday on another day
   logbook month [YYYY-MM]         a month's calendar
@@ -196,12 +197,13 @@ async function run(argv: string[]) {
       const name = positionals.slice(1).join(' ')
       return change(file, date, (days) => markHoliday(days[date], name, values.replace ?? false))
     }
-    case 'worked': {
+    case 'note': {
       const date = dateOption(values.date, today)
-      if (values.clear) return change(file, date, (days) => recordWork(date, days[date], '', []))
+      if (values.clear) return change(file, date, (days) => setNotes(days[date], '', []))
+      // Quoted or not: `logbook note fixed the build` and `logbook note "fixed the build"` are the same.
       const text = positionals.slice(1).join(' ')
-      if (!text && !values.link) throw new Problem('Say what you worked on, add --link URL, or both.')
-      return change(file, date, (days) => recordWork(date, days[date], text || undefined, values.link))
+      if (!text && !values.link) throw new Problem('Write the note, add --link URL, or both.')
+      return change(file, date, (days) => setNotes(days[date], text || undefined, values.link))
     }
     case 'holidays': {
       const year = Number(arg ?? today.slice(0, 4))

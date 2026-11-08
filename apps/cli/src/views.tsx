@@ -79,7 +79,7 @@ export function Status({ day, now, today }: { day?: Day; now: Date; today: strin
             {kindGlyph.holiday} Working on a holiday{day?.holiday && day.note ? `: ${day.note}` : ''}
           </Text>
         ) : null}
-        {day && workedHoliday(today, day) && (day.work || day.links) ? (
+        {day && (day.work || day.links) ? (
           <Text color={color.muted}>
             {day.work ?? 'Nothing noted yet'}
             {day.links ? ` · ${plural(day.links.length, 'link')}` : ''}
@@ -278,7 +278,7 @@ export function WorkedHolidays({ days, year }: { days: Days; year: number }) {
             {day.work ? (
               <Text color={color.text}>  {day.work}</Text>
             ) : (
-              <Text color={color.faint}>  Nothing noted. Run: logbook worked --date {date} "what you did" --link URL</Text>
+              <Text color={color.faint}>  Nothing noted. Run: logbook note --date {date} "what you did" --link URL</Text>
             )}
             {(day.links ?? []).map((link) => (
               <Text key={link} color={color.accent}>

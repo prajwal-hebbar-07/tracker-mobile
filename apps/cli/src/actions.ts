@@ -6,15 +6,15 @@ import {
   leaveLabel,
   normalizeTime,
   plural,
-  workedHoliday,
   type Day,
   type Days,
   type LeaveType,
 } from '@logbook/core'
 
 // The phone's rules, shared by the commands and the interactive view: clock in, clock out and work from
-// home only happen today; any day can take leave or be a holiday; office and home days are only undone from today.
-// Working on a holiday keeps it marked (`holiday: true`), so the day counts as worked on a holiday.
+// home only happen today; any day can take leave or be a holiday, and any logged day takes notes; office and home days
+// are only undone from today. Working on a holiday keeps it marked (`holiday: true`), so the day counts as worked on a
+// holiday.
 export type Change = { ok: true; day: Day | null; message: string } | { ok: false; message: string }
 
 const fail = (message: string): Change => ({ ok: false, message })
@@ -84,17 +84,23 @@ export function parseLinks(text: string): string[] {
   return text.split(/[\s,]+/).filter(Boolean)
 }
 
-// What was worked on during a worked holiday (a weekend counts), with links such as GitHub pull requests as proof.
-// `undefined` keeps what is there; an empty text or list clears it.
-export function recordWork(date: string, day: Day | undefined, work: string | undefined, links: string[] | undefined): Change {
-  if (!day || !workedHoliday(date, day)) {
-    return fail('Only a worked holiday takes a work log. Clock in or work from home on a holiday or weekend first.')
-  }
+// A day's notes, on any logged day. An office or home day keeps what was worked on, plus links (GitHub pull requests,
+// commits) as proof, which is what a worked holiday's log is made of. Leave and a holiday off keep a plain note (a
+// holiday's name is its note). `undefined` keeps what is there; an empty text or list clears it.
+export function setNotes(day: Day | undefined, text: string | undefined, links: string[] | undefined): Change {
+  if (!day) return fail('Nothing is logged on that day. Clock in, work from home, take leave or mark a holiday first.')
   const bad = links?.find((link) => !cleanLink(link))
   if (bad) return fail(`${bad} is not a link. Use a full URL, such as https://github.com/owner/repo/pull/1.`)
   const next: Day = { ...day }
-  if (work !== undefined) {
-    const trimmed = work.trim().slice(0, 1000)
+  if (day.kind === 'leave' || day.kind === 'holiday') {
+    if (links?.length) return fail('Links go on a worked day: an office or home day.')
+    const trimmed = text?.trim().slice(0, 280)
+    if (trimmed) next.note = trimmed
+    else if (trimmed === '') delete next.note
+    return { ok: true, day: next, message: next.note ? 'Note saved.' : 'Note cleared.' }
+  }
+  if (text !== undefined) {
+    const trimmed = text.trim().slice(0, 1000)
     if (trimmed) next.work = trimmed
     else delete next.work
   }
@@ -103,8 +109,8 @@ export function recordWork(date: string, day: Day | undefined, work: string | un
     if (kept.length) next.links = kept
     else delete next.links
   }
-  if (!next.work && !next.links) return { ok: true, day: next, message: 'Work log cleared.' }
-  return { ok: true, day: next, message: `Work log saved${next.links ? ` with ${plural(next.links.length, 'link')}` : ''}.` }
+  if (!next.work && !next.links) return { ok: true, day: next, message: 'Notes cleared.' }
+  return { ok: true, day: next, message: `Notes saved${next.links ? ` with ${plural(next.links.length, 'link')}` : ''}.` }
 }
 
 // Replacing an office or home day with leave needs `replace`, the CLI's version of the phone's confirmation.

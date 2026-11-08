@@ -34,8 +34,8 @@ import {
   markHoliday,
   overwrites,
   parseLinks,
-  recordWork,
   reset,
+  setNotes,
   takeLeave,
   takeLeaveRange,
   unmarkHoliday,
@@ -377,25 +377,30 @@ function askHoliday(ask: PageProps['ask'], apply: PageProps['apply'], date: stri
   name(false)
 }
 
-// What was done on a worked holiday, then its links (GitHub pull requests, commits) on one line, as proof.
-function askWork(ask: PageProps['ask'], apply: PageProps['apply'], date: string, day: Day) {
+// A day's notes: what was worked on for an office or home day, or the note of a leave. A worked holiday (weekends too)
+// then asks for links, such as GitHub pull requests, as proof. A holiday off is renamed with `askHoliday` instead.
+function askNotes(ask: PageProps['ask'], apply: PageProps['apply'], date: string, day: Day) {
+  const worked = day.kind === 'office' || day.kind === 'wfh'
+  const proof = workedHoliday(date, day)
   ask({
     kind: 'text',
-    label: 'What did you work on? Enter for the links next',
-    initial: day.work ?? '',
-    onSubmit: (work) =>
+    label: worked ? `What did you work on? Enter ${proof ? 'for the links next' : 'to save'}` : 'Note, Enter to save',
+    initial: (worked ? day.work : day.note) ?? '',
+    onSubmit: (text) => {
+      if (!proof) return apply(date, setNotes(day, text, undefined))
       ask({
         kind: 'text',
-        label: 'Links, separated by spaces (GitHub PRs, commits), Enter to save',
+        label: 'Links as proof (GitHub PRs, commits), separated by spaces, Enter to save',
         initial: (day.links ?? []).join(' '),
-        onSubmit: (links) => apply(date, recordWork(date, day, work, parseLinks(links))),
-      }),
+        onSubmit: (links) => apply(date, setNotes(day, text, parseLinks(links))),
+      })
+    },
   })
 }
 
 // With vim keys on, h and l only ever move, so the actions that use them take other letters.
 function actionKeys(vim: boolean) {
-  return { home: vim ? 'w' : 'h', leave: vim ? 'm' : 'l', range: vim ? 'v' : 'r', holiday: 'f', work: 'p' }
+  return { home: vim ? 'w' : 'h', leave: vim ? 'm' : 'l', range: vim ? 'v' : 'r', holiday: 'f', notes: 'n' }
 }
 
 function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
@@ -412,7 +417,7 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
       if (input === keyOf.leave && !day) askLeave(ask, apply, today, day, false)
       if (input === keyOf.holiday && day?.kind !== 'leave') askHoliday(ask, apply, today, day)
       if (input === 'd' && (day?.kind === 'holiday' || day?.holiday)) apply(today, unmarkHoliday(day))
-      if (input === keyOf.work && day && workedHoliday(today, day)) askWork(ask, apply, today, day)
+      if (input === keyOf.notes && day && day.kind !== 'holiday') askNotes(ask, apply, today, day)
       if (input === 's' && day) apply(today, reset(day, true))
       if (input === 'e' && office?.in) {
         ask({ kind: 'text', label: 'Clock-in time (HH:MM)', initial: office.in, onSubmit: (value) => apply(today, clockIn(day, value, timeNow())) })
@@ -423,17 +428,14 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
     },
     { isActive: active },
   )
-  // Worked days can be marked as a holiday (or renamed, or unmarked) without losing the work, and a worked holiday
-  // (weekends too) takes a work log.
-  const holidayKeys: [string, string][] = [
-    ...(day?.holiday
-      ? ([
-          [keyOf.holiday, 'rename'],
-          ['d', 'not holiday'],
-        ] as [string, string][])
-      : ([[keyOf.holiday, 'holiday']] as [string, string][])),
-    ...(day && workedHoliday(today, day) ? ([[keyOf.work, 'work log']] as [string, string][]) : []),
-  ]
+  // Worked days can be marked as a holiday (or renamed, or unmarked) without losing the work.
+  const holidayKeys: [string, string][] = day?.holiday
+    ? [
+        [keyOf.holiday, 'rename'],
+        ['d', 'not holiday'],
+      ]
+    : [[keyOf.holiday, 'holiday']]
+  const notes: [string, string] = [keyOf.notes, 'notes']
   const keys: [string, string][] = !day
     ? [
         ['i', 'clock in'],
@@ -449,14 +451,14 @@ function TodayPage({ days, now, today, active, vim, apply, ask }: PageProps) {
           ['d', 'remove'],
         ]
       : office?.in && !office.out
-        ? [['o', 'clock out'], ['e', 'edit in'], ...holidayKeys, ['s', 'start over']]
+        ? [['o', 'clock out'], notes, ['e', 'edit in'], ...holidayKeys, ['s', 'start over']]
         : office?.out
-          ? [['e', 'edit in'], ['u', 'edit out'], ...holidayKeys, ['s', 'start over']]
+          ? [notes, ['e', 'edit in'], ['u', 'edit out'], ...holidayKeys, ['s', 'start over']]
           : office
-            ? [['i', 'clock in'], ...holidayKeys, ['s', 'start over']]
+            ? [['i', 'clock in'], notes, ...holidayKeys, ['s', 'start over']]
             : day.kind === 'wfh'
-              ? [...holidayKeys, ['s', 'start over']]
-              : [['s', 'start over']]
+              ? [notes, ...holidayKeys, ['s', 'start over']]
+              : [notes, ['s', 'start over']]
   return (
     <Box flexDirection="column">
       <Status day={day} now={now} today={today} />
@@ -555,7 +557,7 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
         ask({ kind: 'confirm', label: 'Remove this holiday?', onYes: () => apply(selected, reset(day, false)) })
       }
       if (input === 'd' && day?.holiday) apply(selected, unmarkHoliday(day))
-      if (input === keyOf.work && day && workedHoliday(selected, day)) askWork(ask, apply, selected, day)
+      if (input === keyOf.notes && day && day.kind !== 'holiday') askNotes(ask, apply, selected, day)
     },
     { isActive: active },
   )
@@ -579,10 +581,10 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
           ['[ ]', 'month'],
           ['t', 'today'],
           [keyOf.leave, 'leave'],
+          ...(day && day.kind !== 'holiday' ? ([[keyOf.notes, 'notes']] as [string, string][]) : []),
           [keyOf.holiday, day?.kind === 'holiday' || day?.holiday ? 'rename' : 'holiday'],
           ...(day?.kind === 'leave' || day?.kind === 'holiday' ? ([['d', 'remove']] as [string, string][]) : []),
           ...(day?.holiday ? ([['d', 'not holiday']] as [string, string][]) : []),
-          ...(day && workedHoliday(selected, day) ? ([[keyOf.work, 'work log']] as [string, string][]) : []),
           [keyOf.range, 'range'],
         ]
   return (
@@ -615,14 +617,16 @@ function MonthPage({ days, today, active, vim, apply, applyRange, ask, say, goTo
         </Box>
       ) : (
         <Box flexDirection="column">
-          <Text color={color.muted}>
+          {/* One line, cut short, so a long note never pushes the panel past the terminal. */}
+          <Text color={color.muted} wrap="truncate-end">
             <Text color={color.text} bold>
               {formatLong(selected)}
             </Text>
             {' · '}
             {day ? describeDay(day) : isWeekend(selected) ? 'Weekend, a holiday' : 'Nothing logged'}
             {day?.note ? ` — ${day.note}` : ''}
-            {day?.work || day?.links ? ` · work logged${day.links ? `, ${plural(day.links.length, 'link')}` : ''}` : ''}
+            {day?.links ? ` · ${plural(day.links.length, 'link')}` : ''}
+            {day?.work ? ` · ${day.work}` : ''}
           </Text>
           <MonthSummary days={days} year={year} month={month} today={today} />
         </Box>

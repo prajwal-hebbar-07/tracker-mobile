@@ -6,8 +6,8 @@ import {
   clockOut,
   markHoliday,
   parseLinks,
-  recordWork,
   reset,
+  setNotes,
   takeLeave,
   takeLeaveRange,
   unmarkHoliday,
@@ -93,22 +93,33 @@ test('marking a holiday keeps a worked day, replaces leave only when asked, and 
   assert.equal(unmarkHoliday({ kind: 'wfh' }).ok, false)
 })
 
-test('a work log only goes on a worked holiday or weekend, takes real links, and can be cleared', () => {
+test('notes go on any logged day; links only on worked days, and only real ones', () => {
   const pr = 'https://github.com/owner/repo/pull/12'
   const commit = 'https://github.com/owner/repo/commit/abc123'
-  // Thu 5 Nov 2026 is a weekday, Sat 7 Nov a weekend.
-  assert.equal(recordWork('2026-11-05', { kind: 'office', in: '09:00' }, 'fix', undefined).ok, false)
-  assert.equal(recordWork('2026-11-05', { kind: 'holiday' }, 'fix', undefined).ok, false)
-  assert.equal(recordWork('2026-11-07', { kind: 'wfh' }, undefined, ['repo#12']).ok, false)
+  assert.equal(setNotes(undefined, 'fix', undefined).ok, false)
+  assert.deepEqual(written(setNotes({ kind: 'office', in: '09:00' }, ' fixed the build ', undefined)), {
+    kind: 'office',
+    in: '09:00',
+    work: 'fixed the build',
+  })
+  assert.equal(setNotes({ kind: 'wfh' }, undefined, ['repo#12']).ok, false)
   assert.deepEqual(parseLinks(` ${pr}, ${commit}  ${pr} `), [pr, commit, pr])
-  const logged = written(recordWork('2026-11-07', { kind: 'wfh' }, '  release fix ', parseLinks(`${pr} ${commit} ${pr}`)))
-  assert.deepEqual(logged, { kind: 'wfh', work: 'release fix', links: [pr, commit] })
+  assert.deepEqual(written(setNotes({ kind: 'wfh' }, '  release fix ', parseLinks(`${pr} ${commit} ${pr}`))), {
+    kind: 'wfh',
+    work: 'release fix',
+    links: [pr, commit],
+  })
   // Only what is given changes; empty values clear.
-  assert.deepEqual(written(recordWork('2026-11-05', { kind: 'office', holiday: true, work: 'a', links: [pr] }, 'b', undefined)), {
+  assert.deepEqual(written(setNotes({ kind: 'office', holiday: true, note: 'Diwali', work: 'a', links: [pr] }, 'b', undefined)), {
     kind: 'office',
     holiday: true,
+    note: 'Diwali',
     work: 'b',
     links: [pr],
   })
-  assert.deepEqual(written(recordWork('2026-11-07', { kind: 'wfh', work: 'a', links: [pr] }, '', [])), { kind: 'wfh' })
+  assert.deepEqual(written(setNotes({ kind: 'wfh', work: 'a', links: [pr] }, '', [])), { kind: 'wfh' })
+  // Leave and a holiday off keep a plain note, and take no links.
+  assert.deepEqual(written(setNotes({ kind: 'leave', leaveType: 'sick' }, 'flu', undefined)), { kind: 'leave', leaveType: 'sick', note: 'flu' })
+  assert.deepEqual(written(setNotes({ kind: 'holiday', note: 'Diwali' }, '', [])), { kind: 'holiday' })
+  assert.equal(setNotes({ kind: 'leave' }, 'flu', [pr]).ok, false)
 })
